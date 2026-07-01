@@ -446,12 +446,12 @@ function AssetRow({
         </div>
       </div>
       <div className="actions">
-        {(asset.type === 'pdf' || asset.type === 'image') && (
+        {(asset.type === 'pdf' || asset.type === 'image' || asset.source === 'guistudy') && (
           <Link className="btn btn-sm" to={`/songs/${songId}/practice`}>
             查看
           </Link>
         )}
-        {asset.sourceUrl && asset.type === 'link' && (
+        {asset.sourceUrl && asset.type === 'link' && asset.source !== 'guistudy' && (
           <button
             className="btn btn-sm"
             onClick={() =>

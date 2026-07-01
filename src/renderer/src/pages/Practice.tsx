@@ -8,6 +8,7 @@ import { api, unwrap } from '../lib/api'
 import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
 import { toast } from '../stores/toast'
 import { Card, ConfirmDialog, Empty, Spinner, Stars, StatusBadge, useAsyncAction } from '../components/ui'
+import { GuistudyViewer } from '../components/GuistudyViewer'
 
 /** 计时器状态机 */
 type TimerPhase = 'idle' | 'running' | 'paused'
@@ -254,17 +255,20 @@ export default function Practice(): React.ReactElement {
   if (loading) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
 
-  // 选择要展示的曲谱：优先 primary，否则第一个 pdf/image，再考虑 link
+  // 选择要展示的曲谱：优先 guistudy（嵌入查看），再 primary 的 pdf/image，再普通 link
   const primaryScore = detail.scores.find((s) => s.isPrimary)
+  const guistudyScore =
+    (primaryScore && primaryScore.source === 'guistudy' ? primaryScore : undefined) ??
+    detail.scores.find((s) => s.source === 'guistudy')
   const fileScore =
     primaryScore && primaryScore.type !== 'link'
       ? primaryScore
       : detail.scores.find((s) => (s.type === 'pdf' || s.type === 'image') && s.hasLocalFile) ??
         (primaryScore && primaryScore.type !== 'link' ? primaryScore : undefined)
   const linkScore =
-    primaryScore && primaryScore.type === 'link'
+    primaryScore && primaryScore.type === 'link' && primaryScore.source !== 'guistudy'
       ? primaryScore
-      : detail.scores.find((s) => s.type === 'link') ?? undefined
+      : detail.scores.find((s) => s.type === 'link' && s.source !== 'guistudy') ?? undefined
 
   const assetUrl = (assetId: string): string => `songcat-asset://${assetId}`
 
@@ -306,7 +310,9 @@ export default function Practice(): React.ReactElement {
             ) : undefined
           }
         >
-          {fileScore ? (
+          {guistudyScore && guistudyScore.sourceUrl ? (
+            <GuistudyViewer url={guistudyScore.sourceUrl} height="70vh" />
+          ) : fileScore ? (
             fileScore.type === 'pdf' ? (
               <iframe
                 title={fileScore.title ?? '曲谱'}
