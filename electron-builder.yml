@@ -19,6 +19,7 @@ asarUnpack:
 extraMetadata:
   main: ./out/main/index.js
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:

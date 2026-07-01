@@ -13,16 +13,14 @@ import type { AiCandidate, AiSearchInput, TestDeepSeekResult } from '@shared'
 import { isHttpUrl } from '../utils'
 import { aiErr, networkErr, unauthorized, validation } from './errors'
 
-const SYSTEM_PROMPT = `你是音乐曲谱助理。用户会给你一首歌的描述（可能是歌名、艺人、歌词片段或粘贴文本）。
-请返回严格的 JSON，结构为：
-{"candidates":[{"title":"歌名","artist":"艺人(可空)","confidence":0~1,"suggested_queries":["搜索词"],"possible_sources":[{"source_name":"站点名","search_query":"该站搜索词","url":"搜索或资源URL","reason":"理由"}],"notes":"备注"}]}
+const SYSTEM_PROMPT = `你是音乐曲谱助理。用户会给你：歌词片段、歌手名、歌名，或它们的组合（常只记得歌词不知歌名）。
+请识别出歌曲，返回严格的 JSON，结构为：
+{"candidates":[{"title":"歌名","artist":"艺人(可空)","confidence":0~1,"lyrics_snippet":"识别所依据的歌词(可空)","suggested_queries":["可在曲谱站搜索的词，如'歌名 艺人'"],"possible_sources":[{"source_name":"站点名","search_query":"该站搜索词","url":"该歌曲乐谱页或搜索页 URL","reason":"推荐理由"}],"notes":"备注"}]}
 规则：
 - 最多 5 个候选，每个候选必须有非空 title。
-- artist 可为空字符串。
-- confidence 仅作提示，不要当作事实。
-- url 必须是合法 http/https 链接。
-- 只建议免费公开来源（如 IMSLP、Mutopia、MuseScore 公开页面），不要建议盗版或绕过付费的来源。
-- 不要编造 URL；不确定时 suggested_queries 给出可在搜索引擎使用的词。
+- 通过歌词要尽量准确定位歌曲（用 lyrics_snippet 说明识别依据）。
+- url 必须是合法 http/https。优先给 guistudy（谱全了）的搜索 URL：https://guistudy.com/search?keyword=（歌名+艺人，URL 编码）；其次其他公开免费乐谱站（Ultimate Guitar、吉他社等）。
+- 不要编造不存在的具体曲谱页 URL；不确定时给该站的搜索 URL。
 - 只输出 JSON，不要任何额外文字或代码块标记。`
 
 const sourceSchema = z.object({
@@ -36,6 +34,7 @@ const candidateSchema = z.object({
   title: z.string().min(1),
   artist: z.string().nullable().optional().default(''),
   confidence: z.number().min(0).max(1).optional().default(0),
+  lyrics_snippet: z.string().optional().default(''),
   suggested_queries: z.array(z.string()).optional().default([]),
   possible_sources: z.array(sourceSchema).optional().default([]),
   notes: z.string().optional().default('')
@@ -130,6 +129,7 @@ export async function searchCandidates(input: AiSearchInput): Promise<AiCandidat
     title: c.title,
     artist: c.artist ? c.artist : null,
     confidence: c.confidence,
+    lyricsSnippet: c.lyrics_snippet,
     suggestedQueries: c.suggested_queries,
     possibleSources: c.possible_sources
       .filter((s) => isHttpUrl(s.url))

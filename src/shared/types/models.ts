@@ -276,6 +276,8 @@ export interface AiCandidate {
   title: string
   artist: string | null
   confidence: number
+  /** 识别所依据的歌词片段（若用户用歌词搜索） */
+  lyricsSnippet: string
   suggestedQueries: string[]
   possibleSources: AiCandidateSource[]
   notes: string

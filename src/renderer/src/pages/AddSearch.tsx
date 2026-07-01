@@ -351,14 +351,29 @@ function AiTab(): React.ReactElement {
 
   const addToLibrary = async (c: AiCandidate) => {
     try {
-      await unwrap(
-        api.library.create({
-          title: c.title,
-          artist: c.artist || null,
-          status: 'to-learn'
-        })
-      )
-      toast.success('已加入曲库，可在曲库继续导入曲谱')
+      const song = await unwrap(api.library.findOrCreate(c.title, c.artist || undefined))
+      // AI 识别出歌后，自动用 guistudy 搜该歌，取第一首曲谱关联入库（一键带谱）
+      const kw = c.artist ? `${c.title} ${c.artist}` : c.title
+      try {
+        const results = await unwrap(api.sources.searchFreeSources(kw))
+        if (results.length > 0) {
+          const top = results[0]
+          await unwrap(
+            api.assets.addScoreLink(song.id, {
+              url: top.url,
+              title: top.title,
+              sourceName: top.sourceName,
+              source: 'guistudy',
+              instrument: top.instrument ?? undefined
+            })
+          )
+          toast.success(`已入库《${song.title}》并关联曲谱`)
+          return
+        }
+      } catch {
+        // 自动找谱失败不阻塞入库
+      }
+      toast.success(`已入库《${song.title}》；未自动找到曲谱，可去「免费资源站」手动搜`)
     } catch (e) {
       toast.error((e as Error).message)
     }
