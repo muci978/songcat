@@ -60,6 +60,43 @@ npm run build:win        # 打包 Windows NSIS 安装包（需在 Windows 或配
 - **下载策略**：`direct-download` 才尝试下载并校验 MIME（仅 PDF/图片）；疑似付费墙/登录（返回 HTML）即拒绝并提示保存链接；绝不绕过限制。
 - **资源策略**：只内置免费来源（IMSLP / Mutopia / MuseScore 公开页），第一版 `searchFreeSources` 返回搜索入口链接，不抓取全站。
 
+## Windows 打包与安装
+
+本项目含 better-sqlite3 等 native 模块，**必须在 Windows 环境完成打包**（Linux/WSL 无法交叉产出可用的 Windows 包——native 无法交叉编译、NSIS 需要 wine）。
+
+### 1. 把源码复制到 Windows 本地盘
+从 WSL 取出（Windows 资源管理器地址栏输入）：
+```
+\\wsl.localhost\Ubuntu-24.04\home\lhy\songcat
+```
+复制到如 `D:\songcat`。**不要在 `\\wsl.localhost\...` 路径上直接 `npm install`**——会很慢且 native 模块易出错。
+
+### 2. 安装前置
+- **Node.js 22 LTS**：https://nodejs.org （安装时勾选 "Tools for Native Modules"，会自动装 VS Build Tools；万一 better-sqlite3 需要本地编译时用得上）
+- （可选）Git
+
+### 3. 构建安装包（PowerShell）
+```powershell
+cd D:\songcat
+npm install
+npm run build:win
+```
+- `npm install` 会自动下载 Windows 版 better-sqlite3 prebuilt（通常无需编译）
+- `npm run build:win` 首次会下载 Electron 43 + NSIS 工具（约 200MB）
+
+国内网络建议先设镜像加速：
+```powershell
+$env:ELECTRON_MIRROR="https://cdn.npmmirror.com/binaries/electron/"
+$env:ELECTRON_BUILDER_BINARIES_MIRROR="https://cdn.npmmirror.com/binaries/electron-builder-binaries/"
+```
+
+产物：`release\0.1.0\SongCat-0.1.0-Setup.exe`（NSIS 一键安装包）
+
+### 4. 安装与卸载
+- 双击 `Setup.exe` 一键安装（自动创建开始菜单 + 桌面快捷方式）
+- 首次运行 Windows SmartScreen 可能提示"未知发布者"（应用未代码签名）→ 点"仍要运行"
+- 卸载默认**保留**用户数据 `%APPDATA%\SongCat\`（曲库/数据库/录音/设置）；仅当明确选择才删除
+
 ## 环境说明
 
 - 需要 Node 20+（含 native 编译工具链以构建 better-sqlite3）。
