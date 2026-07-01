@@ -13,7 +13,8 @@ const api: SongCatApi = {
     create: (input) => ipcRenderer.invoke(IPC.library.create, input),
     update: (id, input) => ipcRenderer.invoke(IPC.library.update, id, input),
     delete: (id) => ipcRenderer.invoke(IPC.library.delete, id),
-    touch: (id) => ipcRenderer.invoke(IPC.library.touch, id)
+    touch: (id) => ipcRenderer.invoke(IPC.library.touch, id),
+    findOrCreate: (title, artist) => ipcRenderer.invoke(IPC.library.findOrCreate, title, artist)
   },
   assets: {
     list: (songId) => ipcRenderer.invoke(IPC.assets.list, songId),

@@ -27,6 +27,8 @@ import type {
   ListDensity,
   ResourceSourceKind,
   ResourceSourcePolicy,
+  ScoreAssetSource,
+  Instrument,
   SongStatus,
   ThemeMode
 } from './enums'
@@ -78,7 +80,8 @@ export const IPC = {
     create: 'library:create',
     update: 'library:update',
     delete: 'library:delete',
-    touch: 'library:touch'
+    touch: 'library:touch',
+    findOrCreate: 'library:findOrCreate'
   },
   assets: {
     list: 'assets:list',
@@ -179,6 +182,9 @@ export interface AddScoreLinkInput {
   title?: string | null
   url: string
   sourceName?: string | null
+  /** 来源：guistudy（嵌入查看）/ local / ai；默认 local */
+  source?: ScoreAssetSource
+  instrument?: Instrument | null
   notes?: string | null
 }
 
@@ -287,6 +293,8 @@ export interface LibraryApi {
   delete(id: string): Promise<IpcResult<{ deleted: boolean }>>
   /** 更新 last_opened_at（进入 Practice View 时调用） */
   touch(id: string): Promise<IpcResult<void>>
+  /** 按标题+艺人查找；不存在则创建（搜索结果一键入库用） */
+  findOrCreate(title: string, artist?: string | null): Promise<IpcResult<Song>>
 }
 
 export interface AssetsApi {

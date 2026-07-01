@@ -247,14 +247,20 @@ export interface SongDetail extends SongSummary {
   recentSessions: PracticeSession[]
 }
 
-/** 单条搜索结果（免费资源站或 DeepSeek 候选统一形态之一） */
+/** 单条搜索结果（guistudy 实际搜索结果） */
 export interface FreeSourceSearchResult {
   sourceName: string
   sourcePolicy: ResourceSourcePolicy
-  title: string | null
+  title: string
+  artist: string | null
+  /** guistudy 曲谱详情页 URL（/tabs/{id}） */
   url: string
-  /** 推断的资源类型（若能识别） */
-  inferredType: ScoreAssetType | null
+  instrument: Instrument | null
+  screenshotUrl: string | null
+  /** 弹唱/指弹 */
+  typeLabel: string | null
+  /** 调，如 G/C/Eb */
+  keyLabel: string | null
   snippet: string | null
 }
 

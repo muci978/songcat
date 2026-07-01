@@ -43,6 +43,30 @@ export function createSong(input: CreateSongInput): Song {
   return songsRepository.toModel(row)!
 }
 
+/**
+ * 按标题+艺人精确查找；不存在则创建。用于"搜索结果一键入库"：
+ * 同一首歌（标题/艺人一致）不重复创建，只追加资源。
+ */
+export function findOrCreateSongByTitleArtist(
+  title: string,
+  artist?: string | null
+): Song {
+  const normTitle = title.trim()
+  const normArtist = artist?.trim() ? artist.trim() : null
+  const candidates = songsRepository.search({ text: normTitle, limit: 100 })
+  const t = normTitle.toLowerCase()
+  const a = normArtist?.toLowerCase() ?? null
+  for (const c of candidates) {
+    if (c.title.trim().toLowerCase() !== t) continue
+    const ca = c.artist?.trim().toLowerCase() ?? null
+    if (ca === a) {
+      const row = songsRepository.getById(c.id)
+      if (row) return songsRepository.toModel(row)!
+    }
+  }
+  return createSong({ title: normTitle, artist: normArtist })
+}
+
 export function updateSong(id: string, input: UpdateSongInput): Song {
   const row = songsRepository.update(id, {
     title: input.title,

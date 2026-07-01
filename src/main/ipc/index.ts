@@ -45,6 +45,9 @@ export function registerIpc(): void {
     handle(async () => ({ deleted: await libraryService.deleteSong(id) }))
   )
   ipcMain.handle(IPC.library.touch, (_e, id) => handle(() => libraryService.touchSong(id)))
+  ipcMain.handle(IPC.library.findOrCreate, (_e, title, artist) =>
+    handle(() => libraryService.findOrCreateSongByTitleArtist(title, artist))
+  )
 
   /* ---------------- assets ---------------- */
   ipcMain.handle(IPC.assets.list, (_e, songId) =>

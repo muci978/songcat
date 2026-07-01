@@ -13,6 +13,7 @@ import type {
 } from '@shared'
 import { isHttpUrl } from '../utils'
 import { validation } from './errors'
+import { searchGuistudy } from './guistudy'
 
 export function listSources(): ResourceSource[] {
   return resourceSourcesRepository.toModels(resourceSourcesRepository.list())
@@ -51,27 +52,30 @@ export function removeSource(id: string): boolean {
   return resourceSourcesRepository.delete(id)
 }
 
-export function searchFreeSources(query: string): FreeSourceSearchResult[] {
+export async function searchFreeSources(query: string): Promise<FreeSourceSearchResult[]> {
   const q = query.trim()
   if (!q) return []
-  const sources = resourceSourcesRepository.listEnabled()
-  return sources.map((s) => ({
-    sourceName: s.name,
-    sourcePolicy: s.policy,
-    title: `在 ${s.name} 搜索`,
-    url: buildSearchUrl(s.search_url_template, s.base_url, q),
-    inferredType: s.kind === 'audio' ? null : 'pdf',
-    snippet: s.notes
-  }))
-}
-
-function buildSearchUrl(
-  template: string | null,
-  baseUrl: string | null,
-  query: string
-): string {
-  const enc = encodeURIComponent(query)
-  if (template && template.includes('{q}')) return template.replace('{q}', enc)
-  if (baseUrl) return `${baseUrl.replace(/\/$/, '')}/?q=${enc}`
-  return `https://www.google.com/search?q=${enc}+sheet+music`
+  try {
+    const results = await searchGuistudy(q)
+    return results.map((r) => ({
+      sourceName: 'guistudy 谱全了',
+      sourcePolicy: 'browser-only' as const,
+      title: r.title,
+      artist: r.artist,
+      url: r.url,
+      instrument: r.instrument,
+      screenshotUrl: r.screenshotUrl,
+      typeLabel: r.typeLabel,
+      keyLabel: r.keyLabel,
+      snippet: [
+        r.instrument === 'ukulele' ? '尤克里里' : '吉他',
+        r.typeLabel,
+        r.keyLabel
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    }))
+  } catch (e) {
+    throw validation(`guistudy 搜索失败：${(e as Error).message}`)
+  }
 }

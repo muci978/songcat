@@ -96,6 +96,8 @@ export function addScoreLink(songId: string, input: AddScoreLinkInput): ScoreAss
     sourceUrl: input.url,
     sourceName: input.sourceName ?? hostOf(input.url),
     sourcePolicy: 'free-link-only',
+    source: input.source ?? 'local',
+    instrument: input.instrument ?? null,
     fileHash: null,
     fileSize: null,
     mimeType: null,

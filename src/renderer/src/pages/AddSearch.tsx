@@ -5,12 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 import type {
   AiCandidate,
   FreeSourceSearchResult,
-  ResourceSourcePolicy,
   SongSummary
 } from '@shared'
 import { DEEPSEEK_PRIVACY_TEXT, DISCLAIMER_TEXT } from '@shared'
 import { api, unwrap } from '../lib/api'
-import { truncate } from '../lib/format'
 import { toast } from '../stores/toast'
 import { Card, Empty, Spinner, useAsyncAction } from '../components/ui'
 
@@ -22,12 +20,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'ai', label: 'DeepSeek' },
   { key: 'link', label: '粘贴链接' }
 ]
-
-const POLICY_LABEL: Record<ResourceSourcePolicy, string> = {
-  'direct-download': '可直下载',
-  'link-only': '仅链接',
-  'browser-only': '浏览器打开'
-}
 
 export default function AddSearch(): React.ReactElement {
   const [tab, setTab] = useState<TabKey>('manual')
@@ -213,12 +205,10 @@ function ManualTab(): React.ReactElement {
 /* ------------------------------------------------------------------ */
 
 function SourcesTab(): React.ReactElement {
-  const { songs, loading } = useSongList()
-  const [songId, setSongId] = useState('')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FreeSourceSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
-  const dlBusyRef = useRef<Record<string, boolean>>({})
+  const busyRef = useRef<Record<string, boolean>>({})
 
   const search = async () => {
     const q = query.trim()
@@ -227,6 +217,7 @@ function SourcesTab(): React.ReactElement {
       return
     }
     setSearching(true)
+    setResults(null)
     try {
       setResults(await unwrap(api.sources.searchFreeSources(q)))
     } catch (e) {
@@ -236,73 +227,32 @@ function SourcesTab(): React.ReactElement {
     }
   }
 
-  const openUrl = async (url: string) => {
+  // 一键入库：按标题+艺人 findOrCreate 歌曲，再保存 guistudy 曲谱页 URL（嵌入查看）
+  const importToLibrary = async (r: FreeSourceSearchResult) => {
+    if (busyRef[r.url]) return
+    busyRef[r.url] = true
     try {
-      await unwrap(api.system.openExternal(url))
-    } catch (e) {
-      toast.error((e as Error).message)
-    }
-  }
-
-  const downloadDirect = async (r: FreeSourceSearchResult) => {
-    if (!songId) {
-      toast.error('请先选择目标歌曲')
-      return
-    }
-    const key = r.url
-    if (dlBusyRef[key]) return
-    dlBusyRef[key] = true
-    try {
-      const res = await unwrap(
-        api.downloads.startDownload({
-          songId,
-          sourceUrl: r.url,
+      const song = await unwrap(api.library.findOrCreate(r.title, r.artist ?? undefined))
+      await unwrap(
+        api.assets.addScoreLink(song.id, {
+          url: r.url,
+          title: r.title,
           sourceName: r.sourceName,
-          sourcePolicy: r.sourcePolicy,
-          title: r.title
+          source: 'guistudy',
+          instrument: r.instrument ?? undefined
         })
       )
-      if ('status' in res) {
-        toast.error('下载失败：' + (res.errorMessage ?? '未知错误'))
-        toast.info('可改用「保存链接」记录此页面')
-      } else {
-        toast.success('已下载到所选歌曲：' + (res.title || r.title || '曲谱'))
-      }
+      toast.success(`已入库：${song.title}`)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
-      dlBusyRef[key] = false
+      busyRef[r.url] = false
     }
   }
-
-  const saveLink = async (r: FreeSourceSearchResult) => {
-    if (!songId) {
-      toast.error('请先选择目标歌曲')
-      return
-    }
-    try {
-      await unwrap(
-        api.assets.addScoreLink(songId, {
-          url: r.url,
-          title: r.title,
-          sourceName: r.sourceName
-        })
-      )
-      toast.success('已保存链接')
-    } catch (e) {
-      toast.error((e as Error).message)
-    }
-  }
-
-  if (loading) return <Spinner />
 
   return (
     <div>
-      <Card title="选择目标歌曲" style={{ marginBottom: 16 }}>
-        <SongSelect songs={songs} value={songId} onChange={setSongId} />
-      </Card>
-
-      <Card title="搜索免费资源站" style={{ marginBottom: 16 }}>
+      <Card title="搜索曲谱（guistudy 谱全了）" style={{ marginBottom: 16 }}>
         <div className="row" style={{ gap: 8 }}>
           <input
             className="input grow"
@@ -312,17 +262,14 @@ function SourcesTab(): React.ReactElement {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void search()
             }}
+            autoFocus
           />
-          <button
-            className="btn btn-primary"
-            disabled={searching}
-            onClick={() => void search()}
-          >
+          <button className="btn btn-primary" disabled={searching} onClick={() => void search()}>
             {searching ? '搜索中…' : '搜索'}
           </button>
         </div>
         <div className="hint" style={{ marginTop: 8 }}>
-          SongCat 只保存公开页面链接；只有明确允许直下载的资源站才会尝试下载到本地。
+          在 guistudy 免费曲谱库搜索吉他谱/尤克里里谱。点「一键入库」后本地只保存曲谱页链接，打开时直接在 SongCat 内嵌查看（可播放/循环/变调），不下载文件。
         </div>
       </Card>
 
@@ -334,46 +281,33 @@ function SourcesTab(): React.ReactElement {
         <div className="grid grid-auto">
           {results.map((r, i) => (
             <Card key={i}>
-              <div className="row-between" style={{ marginBottom: 6 }}>
-                <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
-                  <span className="badge">{POLICY_LABEL[r.sourcePolicy]}</span>
-                  <span className="faint" style={{ fontSize: 12 }}>
-                    {r.sourceName}
-                  </span>
-                </div>
-              </div>
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                {r.title ?? '（无标题）'}
-              </div>
-              <div className="faint row" style={{ fontSize: 12, gap: 6, marginBottom: 8 }}>
-                <span>{truncate(r.url, 70)}</span>
-              </div>
-              {r.snippet && (
-                <div className="faint" style={{ fontSize: 12, marginBottom: 8 }}>
-                  {r.snippet}
-                </div>
+              {r.screenshotUrl && (
+                <img
+                  src={r.screenshotUrl}
+                  alt=""
+                  style={{ width: '100%', borderRadius: 6, marginBottom: 8 }}
+                />
               )}
-              <div className="row" style={{ gap: 8 }}>
-                <button className="btn btn-sm" onClick={() => void openUrl(r.url)}>
-                  打开
-                </button>
-                {r.sourcePolicy === 'direct-download' && (
-                  <button
-                    className="btn btn-sm btn-primary"
-                    disabled={!songId}
-                    onClick={() => void downloadDirect(r)}
-                  >
-                    下载到所选歌曲
-                  </button>
-                )}
-                <button
-                  className="btn btn-sm"
-                  disabled={!songId}
-                  onClick={() => void saveLink(r)}
-                >
-                  保存链接
-                </button>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>{r.title}</div>
+              <div className="faint" style={{ fontSize: 12, marginBottom: 6 }}>
+                {r.artist ?? '未知艺人'}
               </div>
+              <div className="row wrap" style={{ gap: 4, marginBottom: 8 }}>
+                {r.instrument && (
+                  <span className="tag">
+                    {r.instrument === 'ukulele' ? '尤克里里' : '吉他'}
+                  </span>
+                )}
+                {r.typeLabel && <span className="tag">{r.typeLabel}</span>}
+                {r.keyLabel && <span className="tag">{r.keyLabel}</span>}
+              </div>
+              <button
+                className="btn btn-sm btn-primary"
+                disabled={busyRef[r.url]}
+                onClick={() => void importToLibrary(r)}
+              >
+                {busyRef[r.url] ? '入库中…' : '一键入库'}
+              </button>
             </Card>
           ))}
         </div>
