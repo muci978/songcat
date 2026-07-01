@@ -1,0 +1,13 @@
+/** main 进程 service 层统一出口 */
+export * as settingsService from './settings'
+export * as libraryService from './library'
+export * as assetService from './asset'
+export * as recordingService from './recording'
+export * as practiceService from './practice'
+export * as dashboardService from './dashboard'
+export * as aiService from './ai'
+export * as sourcesService from './sources'
+export * as downloadService from './download'
+export * as backupService from './backup'
+export * as healthService from './health'
+export { AppError, isAppError } from './errors'

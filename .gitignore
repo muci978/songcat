@@ -1,0 +1,10 @@
+node_modules
+dist
+out
+release
+.vite
+coverage
+*.log
+logs
+.DS_Store
+*.local

@@ -1,0 +1,33 @@
+appId: com.songcat.app
+productName: SongCat
+copyright: Copyright © 2026 SongCat
+directories:
+  buildResources: build
+  output: release/${version}
+files:
+  - out/**/*
+  - package.json
+  - "!**/.vscode/*"
+  - "!src/*"
+  - "!electron.vite.config.{js,ts,mjs,cjs}"
+  - "!{.eslintignore,.eslintrc.cjs,.prettierrc.yaml,.prettierignore}"
+  - "!{.env,.env.*,.npmrc}"
+  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,vitest.config.ts}"
+asarUnpack:
+  - resources/**
+  - "**/*.{node,dll}"
+extraMetadata:
+  main: ./out/main/index.js
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-Setup.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: SongCat
+  deleteAppDataOnUninstall: false
