@@ -8,9 +8,11 @@
 import type {
   AssetSourcePolicy,
   DownloadJobStatus,
+  Instrument,
   PracticeStopReason,
   ResourceSourceKind,
   ResourceSourcePolicy,
+  ScoreAssetSource,
   ScoreAssetType,
   SongStatus,
   SourceLinkKind
@@ -48,6 +50,8 @@ export interface ScoreAssetRow {
   source_url: string | null
   source_name: string | null
   source_policy: AssetSourcePolicy
+  source: ScoreAssetSource
+  instrument: Instrument | null
   file_hash: string | null
   file_size: number | null
   mime_type: string | null
@@ -162,6 +166,10 @@ export interface ScoreAsset {
   sourceUrl: string | null
   sourceName: string | null
   sourcePolicy: AssetSourcePolicy
+  /** 来源：guistudy（只存URL嵌入查看）/ local / ai */
+  source: ScoreAssetSource
+  /** 乐器分类（guitar/ukulele），可为空 */
+  instrument: Instrument | null
   fileSize: number | null
   mimeType: string | null
   originalFilename: string | null

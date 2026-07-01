@@ -4,7 +4,14 @@
  */
 import { getDb } from '../connection'
 import { rowToScoreAsset } from '../mappers'
-import type { AssetSourcePolicy, ScoreAsset, ScoreAssetRow, ScoreAssetType } from '@shared'
+import type {
+  AssetSourcePolicy,
+  Instrument,
+  ScoreAsset,
+  ScoreAssetRow,
+  ScoreAssetSource,
+  ScoreAssetType
+} from '@shared'
 import { newId, nowIso } from '../../utils'
 
 export interface NewScoreAssetRecord {
@@ -15,6 +22,8 @@ export interface NewScoreAssetRecord {
   sourceUrl?: string | null
   sourceName?: string | null
   sourcePolicy?: AssetSourcePolicy
+  source?: ScoreAssetSource
+  instrument?: Instrument | null
   fileHash?: string | null
   fileSize?: number | null
   mimeType?: string | null
@@ -58,9 +67,9 @@ export const assetsRepository = {
       db.prepare(
         `INSERT INTO score_assets
            (id, song_id, type, title, local_path, source_url, source_name, source_policy,
-            file_hash, file_size, mime_type, original_filename, date_added, is_primary)
+            source, instrument, file_hash, file_size, mime_type, original_filename, date_added, is_primary)
          VALUES (@id, @songId, @type, @title, @localPath, @sourceUrl, @sourceName, @sourcePolicy,
-            @fileHash, @fileSize, @mimeType, @originalFilename, @now, @isPrimary)`
+            @source, @instrument, @fileHash, @fileSize, @mimeType, @originalFilename, @now, @isPrimary)`
       ).run({
         id,
         songId: rec.songId,
@@ -70,6 +79,8 @@ export const assetsRepository = {
         sourceUrl: rec.sourceUrl ?? null,
         sourceName: rec.sourceName ?? null,
         sourcePolicy: rec.sourcePolicy ?? 'unknown',
+        source: rec.source ?? 'local',
+        instrument: rec.instrument ?? null,
         fileHash: rec.fileHash ?? null,
         fileSize: rec.fileSize ?? null,
         mimeType: rec.mimeType ?? null,

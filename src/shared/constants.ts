@@ -52,34 +52,16 @@ export const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp
 /** 录音允许的 MIME（MediaRecorder 产出） */
 export const RECORDING_MIMES = ['audio/webm', 'audio/webm;codecs=opus', 'audio/ogg', 'audio/mp4'] as const
 
-/** 内置免费资源站（第一版种子数据，见设计 §5.6、§8） */
+/** 内置免费资源站（设计：只内置 guistudy，SongCat 嵌入其曲谱页，本地只存 URL 索引） */
 export const BUILTIN_RESOURCE_SOURCES = [
   {
-    name: 'MuseScore（公共曲谱链接）',
-    baseUrl: 'https://musescore.com',
-    searchUrlTemplate: 'https://musescore.com/sheetmusic?text={q}',
+    name: 'guistudy 谱全了',
+    baseUrl: 'https://guistudy.com',
+    searchUrlTemplate: 'https://guistudy.com/search?keyword={q}',
     enabled: true,
     kind: 'score' as const,
-    policy: 'link-only' as const,
-    notes: '社区曲谱站。多数为付费/版权内容，SongCat 仅保存公开页面链接，不绕过付费墙。'
-  },
-  {
-    name: 'IMSLP（公有领域乐谱）',
-    baseUrl: 'https://imslp.org',
-    searchUrlTemplate: 'https://imslp.org/wiki/Special:Search?search={q}',
-    enabled: true,
-    kind: 'score' as const,
-    policy: 'direct-download' as const,
-    notes: '公有领域乐谱库。公开 PDF 通常可直接下载。请遵守站点条款。'
-  },
-  {
-    name: 'Mutopia Project（自由乐谱）',
-    baseUrl: 'https://www.mutopiaproject.org',
-    searchUrlTemplate: 'https://www.mutopiaproject.org/search.html?search={q}',
-    enabled: true,
-    kind: 'score' as const,
-    policy: 'direct-download' as const,
-    notes: '基于公有领域的自由古典乐谱，LilyPond 生成的 PDF 可直接下载。'
+    policy: 'browser-only' as const,
+    notes: '免费吉他谱/尤克里里谱站。SongCat 嵌入其曲谱页（复用播放/循环/变调等功能），本地只存 URL 索引，不下载文件。'
   }
 ]
 

@@ -39,13 +39,15 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS score_assets (
      id               TEXT PRIMARY KEY NOT NULL,
      song_id          TEXT NOT NULL,
-     type             TEXT NOT NULL CHECK (type IN ('pdf','image','link')),
+     type             TEXT NOT NULL,
      title            TEXT,
      local_path       TEXT,
      source_url       TEXT,
      source_name      TEXT,
      source_policy    TEXT NOT NULL DEFAULT 'unknown'
                       CHECK (source_policy IN ('free-direct','free-link-only','user-imported','unknown')),
+     source           TEXT NOT NULL DEFAULT 'local',
+     instrument       TEXT,
      file_hash        TEXT,
      file_size        INTEGER,
      mime_type        TEXT,

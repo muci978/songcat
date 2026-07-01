@@ -73,6 +73,8 @@ export function rowToScoreAsset(r: ScoreAssetRow): ScoreAsset {
     sourceUrl: r.source_url,
     sourceName: r.source_name,
     sourcePolicy: r.source_policy,
+    source: r.source,
+    instrument: r.instrument,
     fileSize: r.file_size,
     mimeType: r.mime_type,
     originalFilename: r.original_filename,

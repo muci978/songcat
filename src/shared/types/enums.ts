@@ -9,9 +9,26 @@ export type SongStatus = 'to-learn' | 'learning' | 'learned'
 export const SONG_STATUSES: readonly SongStatus[] = ['to-learn', 'learning', 'learned'] as const
 
 /** 曲谱资源类型 */
-export type ScoreAssetType = 'pdf' | 'image' | 'link'
+export type ScoreAssetType = 'pdf' | 'image' | 'link' | 'guitar-pro' | 'ukulele-pro'
 
-export const SCORE_ASSET_TYPES: readonly ScoreAssetType[] = ['pdf', 'image', 'link'] as const
+export const SCORE_ASSET_TYPES: readonly ScoreAssetType[] = [
+  'pdf',
+  'image',
+  'link',
+  'guitar-pro',
+  'ukulele-pro'
+] as const
+
+/**
+ * 资源来源：
+ * - guistudy：只存 guistudy 曲谱页 URL，不下载；查看时嵌入 guistudy 页（复用其播放/循环/变调）
+ * - local：用户提供的本地文件或网络 URL，下载到本地
+ * - ai：AI 找到的可用直链，下载到本地
+ */
+export type ScoreAssetSource = 'guistudy' | 'local' | 'ai'
+
+/** 乐器分类（吉他谱/尤克里里谱筛选） */
+export type Instrument = 'guitar' | 'ukulele'
 
 /**
  * 曲谱资源来源策略（score_assets.source_policy）

@@ -71,6 +71,8 @@ async function chatJson(opts: {
   userContent: string
 }): Promise<unknown> {
   const body: Record<string, unknown> = {
+    // DeepSeek API 必须带 model；用户未填时用默认 deepseek-chat（设计 §9.2：可留空走默认）
+    model: opts.model || 'deepseek-chat',
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: opts.userContent }
@@ -78,7 +80,6 @@ async function chatJson(opts: {
     stream: false,
     response_format: { type: 'json_object' }
   }
-  if (opts.model) body.model = opts.model
 
   let res: Response
   try {
@@ -96,7 +97,10 @@ async function chatJson(opts: {
   }
   if (res.status === 401 || res.status === 403) throw unauthorized('DeepSeek API key 无效。')
   if (res.status === 429) throw aiErr('DeepSeek 限速，请稍后重试。')
-  if (!res.ok) throw aiErr(`DeepSeek 返回 HTTP ${res.status}`)
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw aiErr(`DeepSeek 返回 HTTP ${res.status}${errText ? '：' + errText.slice(0, 300) : ''}`)
+  }
 
   const json = (await res.json()) as {
     choices?: { message?: { content?: string } }[]
