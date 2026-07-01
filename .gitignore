@@ -8,3 +8,4 @@ coverage
 logs
 .DS_Store
 *.local
+build/logo-source.*
