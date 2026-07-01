@@ -37,6 +37,11 @@ export function setDbForTesting(db: DatabaseType): void {
   dbInstance = db
 }
 
+/** db 是否已初始化（退出钩子用，避免未初始化时二次崩溃） */
+export function isDbInitialized(): boolean {
+  return dbInstance !== null
+}
+
 export function closeDatabase(): void {
   try {
     dbInstance?.close()

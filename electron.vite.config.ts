@@ -1,11 +1,14 @@
 import { resolve } from 'path'
+import { readFileSync } from 'node:fs'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
-// electron 在 devDependencies，externalizeDepsPlugin 只处理 dependencies，
-// 故显式把 electron 列为 external，避免它被内联进 main/preload bundle
-// （否则生产环境 main 会执行 electron npm 包的 getElectronPath 而崩溃）。
-const EXTERNAL = ['electron']
+// vite 8 用 rolldown，electron-vite 的 externalizeDepsPlugin 的 external 标记对 rolldown 不生效，
+// 会导致所有运行时依赖被内联进 main/preload bundle。better-sqlite3 一旦被内联，
+// 其 bindings 会从 bundle 位置查找 native(.node) 而找不到。
+// 故显式列出 external（electron 在 devDeps，其余运行时依赖在 dependencies）。
+const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
+const EXTERNAL = ['electron', ...Object.keys(pkg.dependencies || {})]
 
 export default defineConfig({
   main: {

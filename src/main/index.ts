@@ -5,14 +5,14 @@
  * - 外部链接一律走系统浏览器；关闭应用前结束所有进行中的练习会话。
  * - 单实例锁：避免误启动多份导致内存占满（设计 §2.1）。
  */
-import { app, BrowserWindow, shell, protocol, net } from 'electron'
+import { app, BrowserWindow, shell, protocol, net, dialog } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { existsSync } from 'node:fs'
 import { LOCAL_ASSET_PROTOCOL, LOCAL_RECORDING_PROTOCOL } from '@shared'
-import { initPaths, getDbPath } from './lib/paths'
+import { getDbPath, getLogsDir, initPaths } from './lib/paths'
 import { initLogger, logger } from './lib/logger'
-import { closeDatabase, getDb, initDatabase } from './db/connection'
+import { closeDatabase, getDb, initDatabase, isDbInitialized } from './db/connection'
 import { seedBuiltinSources } from './db/seed'
 import { registerIpc } from './ipc'
 import { recoverInterruptedSessions, stopAllActive } from './services/practice'
@@ -111,6 +111,7 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.whenReady().then(() => {
+    let initOk = true
     try {
       initPaths()
       initLogger()
@@ -121,24 +122,39 @@ if (!app.requestSingleInstanceLock()) {
       registerProtocolHandlers()
       registerIpc()
     } catch (e) {
-      logger.error('应用初始化失败', e)
+      // 不再静默吞：弹框显示真正错误，便于诊断；不开窗口、直接退出，避免半坏状态
+      initOk = false
+      const detail = e instanceof Error ? `${e.message}\n\n${e.stack ?? ''}` : String(e)
+      try {
+        logger.error('应用初始化失败', e)
+      } catch {
+        /* logger 自身不可用时忽略 */
+      }
+      dialog.showErrorBox(
+        'SongCat 启动失败',
+        `初始化失败，请把以下信息反馈：\n\n${detail}\n\n日志目录：${getLogsDir()}`
+      )
     }
 
-    createWindow()
-
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow()
-    })
+    if (initOk) {
+      createWindow()
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      })
+    } else {
+      app.quit()
+    }
   })
 
-  // 关闭应用前结束所有进行中的练习会话（设计 §10.2）
+  // 关闭应用前结束所有进行中的练习会话（设计 §10.2）。
+  // 若 db 未初始化（初始化失败），跳过，避免退出时二次崩溃。
   app.on('window-all-closed', () => {
-    stopAllActive('app-close')
+    if (isDbInitialized()) stopAllActive('app-close')
     if (process.platform !== 'darwin') app.quit()
   })
 
   app.on('before-quit', () => {
-    stopAllActive('app-close')
+    if (isDbInitialized()) stopAllActive('app-close')
   })
 }
 
