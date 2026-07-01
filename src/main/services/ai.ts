@@ -19,8 +19,8 @@ const SYSTEM_PROMPT = `你是音乐曲谱助理。用户会给你：歌词片段
 规则：
 - 最多 5 个候选，每个候选必须有非空 title。
 - 通过歌词要尽量准确定位歌曲（用 lyrics_snippet 说明识别依据）。
-- url 必须是合法 http/https。优先给 guistudy（谱全了）的搜索 URL：https://guistudy.com/search?keyword=（歌名+艺人，URL 编码）；其次其他公开免费乐谱站（Ultimate Guitar、吉他社等）。
-- 不要编造不存在的具体曲谱页 URL；不确定时给该站的搜索 URL。
+- url 必须是合法 http/https。优先给 guistudy（谱全了）的搜索 URL：https://guistudy.com/tabs?keyword=（歌名+艺人，URL 编码）；其次其他公开免费乐谱站（Ultimate Guitar、吉他社等）。
+- 不要编造不存在的具体曲谱页 URL（尤其是 guistudy.com/tabs/{id}，你不知道真实 id，编造会 404）；不确定时一律给该站的搜索 URL。
 - 只输出 JSON，不要任何额外文字或代码块标记。`
 
 const sourceSchema = z.object({

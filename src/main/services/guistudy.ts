@@ -114,7 +114,7 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
   })
   win.webContents.setUserAgent(CHROME_UA)
   try {
-    await win.loadURL(`${GUISTUDY_BASE}/search?keyword=${encodeURIComponent(q)}`)
+    await win.loadURL(`${GUISTUDY_BASE}/tabs?keyword=${encodeURIComponent(q)}`)
     await waitForResults(win)
     // 渲染后再多等一拍，确保卡片完整
     await new Promise((r) => setTimeout(r, 800))

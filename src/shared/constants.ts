@@ -57,7 +57,7 @@ export const BUILTIN_RESOURCE_SOURCES = [
   {
     name: 'guistudy 谱全了',
     baseUrl: 'https://guistudy.com',
-    searchUrlTemplate: 'https://guistudy.com/search?keyword={q}',
+    searchUrlTemplate: 'https://guistudy.com/tabs?keyword={q}',
     enabled: true,
     kind: 'score' as const,
     policy: 'browser-only' as const,

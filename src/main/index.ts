@@ -17,6 +17,7 @@ import { seedBuiltinSources } from './db/seed'
 import { registerIpc } from './ipc'
 import { recoverInterruptedSessions, stopAllActive } from './services/practice'
 import { assetsRepository, recordingsRepository } from './db/repositories'
+import { createTray, getIsQuitting, setIsQuitting } from './tray'
 
 // 必须在 app ready 之前注册自定义协议为 privileged（支持 fetch/流式）
 protocol.registerSchemesAsPrivileged([
@@ -52,6 +53,13 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+  // 关闭按钮 → 收到托盘（不退出）；真正退出（托盘「退出」）时 getIsQuitting() 为 true 才放行
+  mainWindow.on('close', (e) => {
+    if (!getIsQuitting()) {
+      e.preventDefault()
+      mainWindow?.hide()
+    }
+  })
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -139,6 +147,7 @@ if (!app.requestSingleInstanceLock()) {
 
     if (initOk) {
       createWindow()
+      createTray(() => mainWindow)
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()
       })
@@ -155,6 +164,7 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('before-quit', () => {
+    setIsQuitting(true)
     if (isDbInitialized()) stopAllActive('app-close')
   })
 }

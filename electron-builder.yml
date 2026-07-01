@@ -16,6 +16,9 @@ files:
 asarUnpack:
   - resources/**
   - "**/*.{node,dll}"
+extraResources:
+  - from: build/icon.png
+    to: icon.png
 extraMetadata:
   main: ./out/main/index.js
 win:
