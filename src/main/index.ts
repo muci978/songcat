@@ -3,6 +3,7 @@
  * - 注册自定义协议（曲谱/录音的本地文件访问，按 id 校验后返回流，路径不暴露给 renderer）。
  * - 启动初始化：路径、日志、数据库、种子、异常恢复、IPC。
  * - 外部链接一律走系统浏览器；关闭应用前结束所有进行中的练习会话。
+ * - 单实例锁：避免误启动多份导致内存占满（设计 §2.1）。
  */
 import { app, BrowserWindow, shell, protocol, net } from 'electron'
 import { join } from 'node:path'
@@ -98,36 +99,48 @@ function registerProtocolHandlers(): void {
   })
 }
 
-app.whenReady().then(() => {
-  try {
-    initPaths()
-    initLogger()
-    initDatabase(getDbPath())
-    seedBuiltinSources(getDb())
-    const recovered = recoverInterruptedSessions()
-    if (recovered > 0) logger.info(`启动恢复：补齐 ${recovered} 个未结束的练习会话`)
-    registerProtocolHandlers()
-    registerIpc()
-  } catch (e) {
-    logger.error('应用初始化失败', e)
-  }
-
-  createWindow()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+// 单实例锁：第二个实例启动时聚焦已有窗口，而非开新进程
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
   })
-})
 
-// 关闭应用前结束所有进行中的练习会话（设计 §10.2）
-app.on('window-all-closed', () => {
-  stopAllActive('app-close')
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.whenReady().then(() => {
+    try {
+      initPaths()
+      initLogger()
+      initDatabase(getDbPath())
+      seedBuiltinSources(getDb())
+      const recovered = recoverInterruptedSessions()
+      if (recovered > 0) logger.info(`启动恢复：补齐 ${recovered} 个未结束的练习会话`)
+      registerProtocolHandlers()
+      registerIpc()
+    } catch (e) {
+      logger.error('应用初始化失败', e)
+    }
 
-app.on('before-quit', () => {
-  stopAllActive('app-close')
-})
+    createWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+  })
+
+  // 关闭应用前结束所有进行中的练习会话（设计 §10.2）
+  app.on('window-all-closed', () => {
+    stopAllActive('app-close')
+    if (process.platform !== 'darwin') app.quit()
+  })
+
+  app.on('before-quit', () => {
+    stopAllActive('app-close')
+  })
+}
 
 process.on('exit', () => {
   closeDatabase()

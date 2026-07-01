@@ -2,6 +2,11 @@ import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+// electron 在 devDependencies，externalizeDepsPlugin 只处理 dependencies，
+// 故显式把 electron 列为 external，避免它被内联进 main/preload bundle
+// （否则生产环境 main 会执行 electron npm 包的 getElectronPath 而崩溃）。
+const EXTERNAL = ['electron']
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -13,6 +18,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
+        external: EXTERNAL,
         input: { index: resolve(__dirname, 'src/main/index.ts') },
         output: { format: 'cjs', entryFileNames: '[name].js' }
       }
@@ -28,6 +34,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
+        external: EXTERNAL,
         input: { index: resolve(__dirname, 'src/preload/index.ts') },
         output: { format: 'cjs', entryFileNames: '[name].js' }
       }
