@@ -9,7 +9,7 @@
   ReadRegStr $R1 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}" "DisplayVersion"
   StrCmp $R1 "" init_continue
 
-  StrCmp $R1 "${VERSION}" init_same 0 init_diff
+  StrCmp $R1 "${VERSION}" init_same init_diff
 
   init_same:
     MessageBox MB_OK "SongCat ${VERSION} is already installed."
@@ -18,7 +18,7 @@
 
   init_diff:
     ${VersionCompare} "$R1" "${VERSION}" $R2
-    StrCmp $R2 "1" init_newer 0
+    StrCmp $R2 "1" init_newer
     ; $R2 == 2: older version installed, continue update
     Goto init_continue
 
