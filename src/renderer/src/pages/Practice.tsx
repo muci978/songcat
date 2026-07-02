@@ -255,20 +255,14 @@ export default function Practice(): React.ReactElement {
   if (loading) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
 
-  // 选择要展示的曲谱：优先 guistudy（嵌入查看），再 primary 的 pdf/image，再普通 link
+  // 选择要展示的曲谱：主资源优先；无主资源时 guistudy > 本地文件 > 外部链接
   const primaryScore = detail.scores.find((s) => s.isPrimary)
-  const guistudyScore =
-    (primaryScore && primaryScore.source === 'guistudy' ? primaryScore : undefined) ??
-    detail.scores.find((s) => s.source === 'guistudy')
-  const fileScore =
-    primaryScore && primaryScore.type !== 'link'
-      ? primaryScore
-      : detail.scores.find((s) => (s.type === 'pdf' || s.type === 'image') && s.hasLocalFile) ??
-        (primaryScore && primaryScore.type !== 'link' ? primaryScore : undefined)
-  const linkScore =
-    primaryScore && primaryScore.type === 'link' && primaryScore.source !== 'guistudy'
-      ? primaryScore
-      : detail.scores.find((s) => s.type === 'link' && s.source !== 'guistudy') ?? undefined
+  const displayScore =
+    primaryScore ??
+    detail.scores.find((s) => s.source === 'guistudy') ??
+    detail.scores.find((s) => (s.type === 'pdf' || s.type === 'image') && s.hasLocalFile) ??
+    detail.scores.find((s) => s.type === 'link' && s.source !== 'guistudy') ??
+    undefined
 
   const assetUrl = (assetId: string): string => `songcat-asset://${assetId}`
 
@@ -313,31 +307,40 @@ export default function Practice(): React.ReactElement {
           style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
           <div style={{ flex: 1, minHeight: 0 }}>
-            {guistudyScore && guistudyScore.sourceUrl ? (
-              <GuistudyViewer url={guistudyScore.sourceUrl} height="100%" />
-            ) : fileScore ? (
-              fileScore.type === 'pdf' ? (
+            {displayScore ? (
+              displayScore.source === 'guistudy' && displayScore.sourceUrl ? (
+                <GuistudyViewer url={displayScore.sourceUrl} height="100%" />
+              ) : displayScore.type === 'pdf' ? (
                 <iframe
-                  title={fileScore.title ?? '曲谱'}
-                  src={assetUrl(fileScore.id)}
+                  title={displayScore.title ?? '曲谱'}
+                  src={assetUrl(displayScore.id)}
                   style={{ width: '100%', height: '100%', border: '0', borderRadius: 8 }}
                 />
-              ) : fileScore.type === 'image' ? (
-                <img src={assetUrl(fileScore.id)} alt={fileScore.title ?? '曲谱'} style={{ maxWidth: '100%' }} />
-              ) : null
-            ) : linkScore ? (
-              <div className="row">
-                <button
-                  className="btn btn-primary"
-                  onClick={() =>
-                    linkScore.sourceUrl
-                      ? void api.system.openExternal(linkScore.sourceUrl).catch(() => {})
-                      : toast.error('该曲谱未提供链接')
-                  }
-                >
-                  打开曲谱链接 ↗
-                </button>
-              </div>
+              ) : displayScore.type === 'image' ? (
+                <img src={assetUrl(displayScore.id)} alt={displayScore.title ?? '曲谱'} style={{ maxWidth: '100%' }} />
+              ) : displayScore.sourceUrl ? (
+                <div className="row">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => void api.system.openExternal(displayScore.sourceUrl!).catch(() => {})}
+                  >
+                    打开曲谱链接 ↗
+                  </button>
+                </div>
+              ) : (
+                <Empty icon="🎼">
+                  <div>这首歌还没有可展示的曲谱。</div>
+                  <div className="row" style={{ marginTop: 12 }}>
+                    <button
+                      className="btn btn-primary"
+                      disabled={importAction.loading}
+                      onClick={handleImportScore}
+                    >
+                      {importAction.loading ? '导入中…' : '导入曲谱'}
+                    </button>
+                  </div>
+                </Empty>
+              )
             ) : (
               <Empty icon="🎼">
                 <div>这首歌还没有曲谱。</div>
@@ -352,7 +355,6 @@ export default function Practice(): React.ReactElement {
                 </div>
               </Empty>
             )}
-          </div>
         </Card>
 
         {/* 右栏：控制面板 */}
