@@ -12,7 +12,7 @@ export function AppRoutes(): React.ReactElement {
       <Route path="/" element={<Dashboard />} />
       <Route path="/library" element={<Library />} />
       <Route path="/songs/:id" element={<SongDetail />} />
-      <Route path="/songs/:id/practice" element={<Practice />} />
+      <Route path="/songs/:id/practice/:assetId?" element={<Practice />} />
       <Route path="/add" element={<AddSearch />} />
       <Route path="/settings" element={<Settings />} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -54,6 +54,17 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_assets_type ON score_assets(type);
       `)
     }
+  },
+  {
+    version: 3,
+    run: (db) => {
+      db.exec(`
+        ALTER TABLE score_assets ADD COLUMN group_id TEXT;
+        ALTER TABLE score_assets ADD COLUMN group_sort INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS idx_assets_song_group ON score_assets(song_id, group_id);
+        PRAGMA foreign_key_check;
+      `)
+    }
   }
 ]
 

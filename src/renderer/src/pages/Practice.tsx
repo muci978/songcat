@@ -2,7 +2,7 @@
  * 曲谱查看 + 练习计时 + 备注 + 录音 + 最近练习记录。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { SongDetail } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
@@ -14,7 +14,8 @@ import { GuistudyViewer } from '../components/GuistudyViewer'
 type TimerPhase = 'idle' | 'running' | 'paused'
 
 export default function Practice(): React.ReactElement {
-  const { id = '' } = useParams<{ id: string }>()
+  const { id = '', assetId } = useParams<{ id: string; assetId?: string }>()
+  const navigate = useNavigate()
 
   const [detail, setDetail] = useState<SongDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -252,19 +253,39 @@ export default function Practice(): React.ReactElement {
     }
   }, [])
 
+  // 分组浏览键盘快捷键：←/→ 翻页（仅在多成员组有效）
+  useEffect(() => {
+    if (!selectedScore?.groupId || group.length <= 1) return
+    const curIdx = group.findIndex((s) => s.id === selectedScore.id)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        const prev = group[curIdx - 1]
+        if (prev) navigate(`/songs/${id}/practice/${prev.id}`)
+      } else if (e.key === 'ArrowRight') {
+        const next = group[curIdx + 1]
+        if (next) navigate(`/songs/${id}/practice/${next.id}`)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedScore, group, id, navigate])
+
   if (loading) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
 
-  // 选择要展示的曲谱：主资源优先；无主资源时 guistudy > 本地文件 > 外部链接
+  // 选择要展示的曲谱：URL assetId 优先；无则按主资源 → guistudy → 本地文件 → 外部链接兜底
   const primaryScore = detail.scores.find((s) => s.isPrimary)
-  const displayScore =
+  const selectedScore =
+    (assetId && detail.scores.find((s) => s.id === assetId)) ??
     primaryScore ??
     detail.scores.find((s) => s.source === 'guistudy') ??
     detail.scores.find((s) => (s.type === 'pdf' || s.type === 'image') && s.hasLocalFile) ??
-    detail.scores.find((s) => s.type === 'link' && s.source !== 'guistudy') ??
-    undefined
+    detail.scores.find((s) => s.type === 'link' && s.source !== 'guistudy')
 
   const assetUrl = (assetId: string): string => `songcat-asset://${assetId}`
+
+  // 当前曲谱所在分组（用于多图/PDF连续浏览）
+  const group = selectedScore ? siblingGroup(selectedScore, detail.scores) : []
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
@@ -306,29 +327,37 @@ export default function Practice(): React.ReactElement {
           }
           style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
-          <div style={{ flex: 1, minHeight: 0 }}>
-            {displayScore ? (
-              displayScore.source === 'guistudy' && displayScore.sourceUrl ? (
-                <GuistudyViewer url={displayScore.sourceUrl} height="100%" />
-              ) : displayScore.type === 'pdf' ? (
-                <iframe
-                  title={displayScore.title ?? '曲谱'}
-                  src={assetUrl(displayScore.id)}
-                  style={{ width: '100%', height: '100%', border: '0', borderRadius: 8 }}
-                />
-              ) : displayScore.type === 'image' ? (
-                <img src={assetUrl(displayScore.id)} alt={displayScore.title ?? '曲谱'} style={{ maxWidth: '100%' }} />
-              ) : displayScore.sourceUrl ? (
-                <div className="row">
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => void api.system.openExternal(displayScore.sourceUrl!).catch(() => {})}
-                  >
-                    打开曲谱链接 ↗
-                  </button>
-                </div>
-              ) : (
-                <Empty icon="🎼">
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {selectedScore && group.length > 1 && selectedScore.type !== 'link' && (
+              <GroupPager songId={id} group={group} currentId={selectedScore.id} />
+            )}
+            <div style={{ flex: 1, minHeight: 0 }}>
+              {selectedScore ? (
+                selectedScore.source === 'guistudy' && selectedScore.sourceUrl ? (
+                  <GuistudyViewer url={selectedScore.sourceUrl} height="100%" />
+                ) : selectedScore.type === 'pdf' ? (
+                  <iframe
+                    title={selectedScore.title ?? '曲谱'}
+                    src={assetUrl(selectedScore.id)}
+                    style={{ width: '100%', height: '100%', border: '0', borderRadius: 8 }}
+                  />
+                ) : selectedScore.type === 'image' ? (
+                  <img
+                    src={assetUrl(selectedScore.id)}
+                    alt={selectedScore.title ?? '曲谱'}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                ) : selectedScore.sourceUrl ? (
+                  <div className="row">
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => void api.system.openExternal(selectedScore.sourceUrl!).catch(() => {})}
+                    >
+                      打开曲谱链接 ↗
+                    </button>
+                  </div>
+                ) : (
+                  <Empty icon="🎼">
                   <div>这首歌还没有可展示的曲谱。</div>
                   <div className="row" style={{ marginTop: 12 }}>
                     <button
@@ -553,4 +582,46 @@ const STOP_REASON_LABEL: Record<string, string> = {
   'switch-song': '切换歌曲',
   'app-close': '关闭应用',
   recovery: '异常恢复'
+}
+
+function siblingGroup(score: ScoreAsset, all: ScoreAsset[]): ScoreAsset[] {
+  if (!score.groupId) return [score]
+  return all
+    .filter((s) => s.groupId === score.groupId)
+    .sort((a, b) => a.groupSort - b.groupSort)
+}
+
+function GroupPager({
+  songId,
+  group,
+  currentId,
+}: {
+  songId: string
+  group: ScoreAsset[]
+  currentId: string
+}): React.ReactElement {
+  const navigate = useNavigate()
+  const curIdx = group.findIndex((g) => g.id === currentId)
+  const goPrev = () => {
+    const prev = group[curIdx - 1]
+    if (prev) navigate(`/songs/${songId}/practice/${prev.id}`)
+  }
+  const goNext = () => {
+    const next = group[curIdx + 1]
+    if (next) navigate(`/songs/${songId}/practice/${next.id}`)
+  }
+
+  return (
+    <div className="row-between" style={{ paddingBottom: 8 }}>
+      <button className="btn btn-sm" disabled={curIdx <= 0} onClick={goPrev}>
+        ← 上一页
+      </button>
+      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+        {curIdx + 1} / {group.length}
+      </span>
+      <button className="btn btn-sm" disabled={curIdx >= group.length - 1} onClick={goNext}>
+        下一页 →
+      </button>
+    </div>
+  )
 }

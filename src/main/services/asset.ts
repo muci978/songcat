@@ -10,6 +10,7 @@ import { assetsRepository, sourceLinksRepository } from '../db/repositories'
 import { classifyScoreFile, extensionFor, hashFile, hostOf, isHttpUrl } from '../utils'
 import { copyFileInto, safeUnlink, uniqueFilename } from '../lib/filestore'
 import { ensureSongDirs, getSongImagesDir, getSongScoresDir } from '../lib/paths'
+import { newId } from '../utils/id'
 import type { AddScoreLinkInput, ImportFilePathInput, ScoreAsset } from '@shared'
 import { notFound, unsupported, validation } from './errors'
 
@@ -27,15 +28,18 @@ export async function importFileDialog(songId: string): Promise<ScoreAsset[]> {
     ]
   })
   if (result.canceled || !result.filePaths.length) return []
+  const groupId = result.filePaths.length > 1 ? newId() : undefined
   const assets: ScoreAsset[] = []
-  for (const fp of result.filePaths) {
+  for (let i = 0; i < result.filePaths.length; i++) {
     try {
       assets.push(
         await importFilePath({
           songId,
-          filePath: fp,
+          filePath: result.filePaths[i]!,
           sourcePolicy: 'user-imported',
-          originalFilename: basename(fp)
+          originalFilename: basename(result.filePaths[i]!),
+          groupId,
+          groupSort: i
         })
       )
     } catch {
@@ -77,7 +81,9 @@ export async function importFilePath(input: ImportFilePathInput): Promise<ScoreA
     fileSize: stored.size,
     mimeType: type === 'pdf' ? 'application/pdf' : guessImageMime(filename),
     originalFilename: filename,
-    isPrimary: isFirst
+    isPrimary: isFirst,
+    groupId: input.groupId ?? null,
+    groupSort: input.groupSort ?? 0
   })
 
   if (input.sourceUrl && isHttpUrl(input.sourceUrl)) {

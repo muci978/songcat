@@ -197,6 +197,8 @@ export interface ImportFilePathInput {
   sourcePolicy?: import('./enums').AssetSourcePolicy
   originalFilename?: string | null
   title?: string | null
+  groupId?: string | null
+  groupSort?: number
 }
 
 export interface CreateResourceSourceInput {

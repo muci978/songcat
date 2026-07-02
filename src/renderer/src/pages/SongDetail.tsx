@@ -211,6 +211,7 @@ export default function SongDetail(): React.ReactElement {
             <AssetRow
               key={a.id}
               asset={a}
+              allAssets={detail.scores}
               songId={songId}
               onChanged={() => void reload()}
               onRemove={(aid) => setRemoveAssetId(aid)}
@@ -407,17 +408,22 @@ async function removeRecording(
 /** 曲谱资源行 */
 function AssetRow({
   asset,
+  allAssets,
   songId,
   onChanged,
   onRemove
 }: {
   asset: ScoreAsset
+  allAssets: ScoreAsset[]
   songId: string
   onChanged: () => void
   onRemove: (assetId: string) => void
 }): React.ReactElement {
   const setPrimaryAction = useAsyncAction()
   const openFolderAction = useAsyncAction()
+
+  const group = asset.groupId ? allAssets.filter((a) => a.groupId === asset.groupId).sort((a, b) => a.groupSort - b.groupSort) : [asset]
+  const groupIndex = group.findIndex((a) => a.id === asset.id)
 
   const onSetPrimary = () =>
     setPrimaryAction.run(async () => {
@@ -438,6 +444,11 @@ function AssetRow({
           <strong>{asset.title ?? asset.originalFilename ?? '未命名'}</strong>
           {asset.isPrimary && <span className="badge">主资源</span>}
           <span className="tag">{asset.type}</span>
+          {group.length > 1 && (
+            <span className="tag">
+              第 {groupIndex + 1}/{group.length} 页
+            </span>
+          )}
         </div>
         <div className="faint" style={{ fontSize: 12 }}>
           {asset.sourceName ? `${asset.sourceName} · ` : ''}
@@ -447,7 +458,7 @@ function AssetRow({
       </div>
       <div className="actions">
         {(asset.type === 'pdf' || asset.type === 'image' || asset.source === 'guistudy') && (
-          <Link className="btn btn-sm" to={`/songs/${songId}/practice`}>
+          <Link className="btn btn-sm" to={`/songs/${songId}/practice/${asset.id}`}>
             查看
           </Link>
         )}

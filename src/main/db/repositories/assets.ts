@@ -29,6 +29,8 @@ export interface NewScoreAssetRecord {
   mimeType?: string | null
   originalFilename?: string | null
   isPrimary?: boolean
+  groupId?: string | null
+  groupSort?: number
 }
 
 export const assetsRepository = {
@@ -67,9 +69,11 @@ export const assetsRepository = {
       db.prepare(
         `INSERT INTO score_assets
            (id, song_id, type, title, local_path, source_url, source_name, source_policy,
-            source, instrument, file_hash, file_size, mime_type, original_filename, date_added, is_primary)
+            source, instrument, file_hash, file_size, mime_type, original_filename, date_added, is_primary,
+            group_id, group_sort)
          VALUES (@id, @songId, @type, @title, @localPath, @sourceUrl, @sourceName, @sourcePolicy,
-            @source, @instrument, @fileHash, @fileSize, @mimeType, @originalFilename, @now, @isPrimary)`
+            @source, @instrument, @fileHash, @fileSize, @mimeType, @originalFilename, @now, @isPrimary,
+            @groupId, @groupSort)`
       ).run({
         id,
         songId: rec.songId,
@@ -86,7 +90,9 @@ export const assetsRepository = {
         mimeType: rec.mimeType ?? null,
         originalFilename: rec.originalFilename ?? null,
         now,
-        isPrimary: rec.isPrimary ? 1 : 0
+        isPrimary: rec.isPrimary ? 1 : 0,
+        groupId: rec.groupId ?? null,
+        groupSort: rec.groupSort ?? 0
       })
     })
     tx()

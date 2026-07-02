@@ -54,11 +54,14 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
      original_filename TEXT,
      date_added       TEXT NOT NULL,
      is_primary       INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)),
+     group_id         TEXT,
+     group_sort       INTEGER NOT NULL DEFAULT 0,
      FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
    )`,
   `CREATE INDEX IF NOT EXISTS idx_assets_song ON score_assets(song_id)`,
   `CREATE INDEX IF NOT EXISTS idx_assets_hash ON score_assets(file_hash)`,
   `CREATE INDEX IF NOT EXISTS idx_assets_type ON score_assets(type)`,
+  `CREATE INDEX IF NOT EXISTS idx_assets_song_group ON score_assets(song_id, group_id)`,
 
   // source_links
   `CREATE TABLE IF NOT EXISTS source_links (

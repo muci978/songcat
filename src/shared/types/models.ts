@@ -58,6 +58,8 @@ export interface ScoreAssetRow {
   original_filename: string | null
   date_added: string
   is_primary: 0 | 1
+  group_id: string | null
+  group_sort: number
 }
 
 export interface SourceLinkRow {
@@ -175,6 +177,8 @@ export interface ScoreAsset {
   originalFilename: string | null
   dateAdded: string
   isPrimary: boolean
+  groupId: string | null
+  groupSort: number
 }
 
 export interface SourceLink {

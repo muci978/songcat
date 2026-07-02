@@ -79,7 +79,9 @@ export function rowToScoreAsset(r: ScoreAssetRow): ScoreAsset {
     mimeType: r.mime_type,
     originalFilename: r.original_filename,
     dateAdded: r.date_added,
-    isPrimary: !!r.is_primary
+    isPrimary: !!r.is_primary,
+    groupId: r.group_id ?? null,
+    groupSort: r.group_sort ?? 0
   }
 }
 
