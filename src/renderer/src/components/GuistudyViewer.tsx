@@ -20,7 +20,7 @@ interface GuistudyViewerProps {
   height?: string
 }
 
-export function GuistudyViewer({ url, height = '90vh' }: GuistudyViewerProps): React.ReactElement {
+export function GuistudyViewer({ url, height = 'calc(100vh - 160px)' }: GuistudyViewerProps): React.ReactElement {
   const [fs, setFs] = useState(false)
   const wvRef = useRef<HTMLElement & {
     insertCSS?: (css: string) => Promise<unknown>
