@@ -177,9 +177,13 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
       | { ok: true; endpoint: string; json: unknown }
       | { ok: false; tried: string[] }
       | null
+    let apiJsonPreview = ''
     if (api && (api as { ok?: boolean }).ok) {
-      const results = parseApi((api as { json: unknown }).json)
+      const json = (api as { json: unknown }).json
+      const results = parseApi(json)
       if (results.length > 0) return results
+      // 端点通了但解析为空：记录 JSON 片段，便于调整 parseApi 字段名
+      apiJsonPreview = JSON.stringify(json).slice(0, 300)
     }
 
     // 回退：DOM 提取（加载关键词页，等 JS 渲染）
@@ -214,7 +218,7 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
           ? (api as { tried: string[] }).tried.join(' | ')
           : 'api 有响应但解析为空'
       throw new Error(
-        `未找到「${q}」。API 尝试: ${tried}。guistudy 实际请求: ${apiCalls.length ? apiCalls.slice(0, 5).join(' | ') : '（无，可能 /tabs?keyword= 不触发搜索）'}。页面: ${diag}`
+        `未找到「${q}」。API 尝试: ${tried}。guistudy 实际请求: ${apiCalls.length ? apiCalls.slice(0, 5).join(' | ') : '（无，/tabs?keyword= 可能不触发搜索）'}。API 返回: ${apiJsonPreview || '（所有端点都非 2xx）'}。页面: ${diag}`
       )
     }
     return out
