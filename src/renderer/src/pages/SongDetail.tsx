@@ -504,9 +504,9 @@ function ImportButton({
       disabled={action.loading}
       onClick={() =>
         action.run(async () => {
-          const asset = await unwrap(api.assets.importFileDialog(songId))
-          if (asset) {
-            toast.success('已导入')
+          const assets = await unwrap(api.assets.importFileDialog(songId))
+          if (assets.length > 0) {
+            toast.success(`已导入 ${assets.length} 个曲谱`)
             onDone()
           }
         })

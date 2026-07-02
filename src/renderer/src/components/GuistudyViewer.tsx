@@ -76,7 +76,13 @@ export function GuistudyViewer({ url, height = 'calc(100vh - 160px)' }: Guistudy
         src={url}
         partition="persist:guistudy"
         allowpopups={false}
-        style={{ width: '100%', height: '100%', border: 0, display: 'block', background: '#fff' }}
+        style={{
+          width: '100%',
+          height: fs ? '100vh' : 'calc(100vh - 160px)',
+          border: 0,
+          display: 'block',
+          background: '#fff'
+        }}
       />
     </div>
   )

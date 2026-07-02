@@ -299,8 +299,8 @@ export interface LibraryApi {
 
 export interface AssetsApi {
   list(songId: string): Promise<IpcResult<ScoreAsset[]>>
-  /** 弹出原生文件选择对话框，导入 PDF/图片（main 端处理，不经 renderer 内存） */
-  importFileDialog(songId: string): Promise<IpcResult<ScoreAsset | null>>
+  /** 弹出原生文件选择对话框，导入 PDF/图片（可多选） */
+  importFileDialog(songId: string): Promise<IpcResult<ScoreAsset[]>>
   /** main 端直接按路径导入（用于已下载到本地的文件） */
   importFilePath(input: ImportFilePathInput): Promise<IpcResult<ScoreAsset>>
   addScoreLink(songId: string, input: AddScoreLinkInput): Promise<IpcResult<ScoreAsset>>

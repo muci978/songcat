@@ -167,8 +167,8 @@ export default function Practice(): React.ReactElement {
 
   const handleImportScore = (): Promise<void> =>
     importAction.run(async () => {
-      const asset = await unwrap(api.assets.importFileDialog(id))
-      if (asset) {
+      const assets = await unwrap(api.assets.importFileDialog(id))
+      if (assets.length > 0) {
         await reload()
       }
     })

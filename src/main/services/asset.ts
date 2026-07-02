@@ -18,21 +18,31 @@ function rowToModel(assetId: string): ScoreAsset {
   return assetsRepository.toModels([row])[0]
 }
 
-export async function importFileDialog(songId: string): Promise<ScoreAsset | null> {
+export async function importFileDialog(songId: string): Promise<ScoreAsset[]> {
   const result = await dialog.showOpenDialog({
-    title: '导入曲谱（PDF / 图片）',
-    properties: ['openFile'],
+    title: '导入曲谱（PDF / 图片，可多选）',
+    properties: ['openFile', 'multiSelections'],
     filters: [
       { name: '曲谱与图片', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }
     ]
   })
-  if (result.canceled || !result.filePaths.length) return null
-  return importFilePath({
-    songId,
-    filePath: result.filePaths[0],
-    sourcePolicy: 'user-imported',
-    originalFilename: basename(result.filePaths[0])
-  })
+  if (result.canceled || !result.filePaths.length) return []
+  const assets: ScoreAsset[] = []
+  for (const fp of result.filePaths) {
+    try {
+      assets.push(
+        await importFilePath({
+          songId,
+          filePath: fp,
+          sourcePolicy: 'user-imported',
+          originalFilename: basename(fp)
+        })
+      )
+    } catch {
+      // 单个文件失败不影响其他
+    }
+  }
+  return assets
 }
 
 export async function importFilePath(input: ImportFilePathInput): Promise<ScoreAsset> {

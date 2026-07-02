@@ -119,8 +119,8 @@ function ManualTab(): React.ReactElement {
   const importFile = () =>
     importAction.run(async () => {
       if (!songId) throw new Error('请先选择歌曲')
-      const a = await unwrap(api.assets.importFileDialog(songId))
-      if (a) toast.success('已导入：' + (a.title || '曲谱'))
+      const assets = await unwrap(api.assets.importFileDialog(songId))
+      if (assets.length > 0) toast.success(`已导入 ${assets.length} 个曲谱`)
     })
 
   const saveLink = () =>
