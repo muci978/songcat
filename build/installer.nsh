@@ -31,7 +31,7 @@
 
 ; ==================== 卸载时询问删除用户数据 ====================
 !macro customUnInstall
-  MessageBox MB_YESNO|MB_ICONQUESTION "Delete SongCat user data too (library, database, recordings, settings)? Choose No to keep." ID_NO un_skip_data
+  MessageBox MB_YESNO|MB_ICONQUESTION "Delete SongCat user data too (library, database, recordings, settings)? Choose No to keep." IDNO un_skip_data
     RMDir /r "$APPDATA\SongCat"
   un_skip_data:
 !macroend
