@@ -81,11 +81,15 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
     }[]
     const seen = new Set<string>()
     const out: GuistudySearchResult[] = []
+    // 关键词分词，过滤掉标题/歌手都不含关键词的无关推荐
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean)
     for (const it of raw || []) {
       if (seen.has(it.href)) continue
       seen.add(it.href)
       const p = parseDomItem(it)
-      if (p) out.push(p)
+      if (!p) continue
+      const hay = (p.title + ' ' + (p.artist ?? '')).toLowerCase()
+      if (tokens.some((t) => hay.includes(t))) out.push(p)
     }
     if (out.length === 0) {
       const diag = await win.webContents

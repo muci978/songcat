@@ -1,7 +1,7 @@
 /**
- * guistudy 曲谱嵌入查看器（不下载，嵌入 guistudy 曲谱页，复用其播放/循环/变调）。
- * - 默认占 90vh（尽量大）；「全屏」切到 fixed inset:0 + 100vh，真正铺满屏幕，Esc 或按钮退出。
- * - webview 用 flex:1 填满按钮下方所有空间。
+ * guistudy 曲谱嵌入查看器。
+ * - 默认占 calc(100vh - 160px)（整个窗口除导航/padding）；「全屏」切 fixed inset:0 + 100vh。
+ * - 注意：webview 是 Electron 特殊元素，flex 对它不生效，必须用 height:100% 撑满容器。
  */
 import { useEffect, useRef, useState } from 'react'
 
@@ -42,7 +42,6 @@ export function GuistudyViewer({ url, height = 'calc(100vh - 160px)' }: Guistudy
     }
   }, [url])
 
-  // Esc 退出全屏
   useEffect(() => {
     if (!fs) return
     const onKey = (e: KeyboardEvent) => {
@@ -61,27 +60,23 @@ export function GuistudyViewer({ url, height = 'calc(100vh - 160px)' }: Guistudy
         width: '100%',
         height: fs ? '100vh' : height,
         background: '#fff',
-        display: 'flex',
-        flexDirection: 'column',
         borderRadius: fs ? 0 : 8,
         overflow: 'hidden'
       }}
     >
-      <div
-        className="row-between"
-        style={{ flex: '0 0 auto', padding: '6px 8px', background: 'var(--bg-subtle)' }}
+      <button
+        className="btn btn-sm"
+        onClick={() => setFs((v) => !v)}
+        style={{ position: 'absolute', top: 8, right: 8, zIndex: 2, opacity: 0.9 }}
       >
-        <span className="hint">guistudy 曲谱（嵌入查看，可播放 / 循环 / 变调）</span>
-        <button className="btn btn-sm" onClick={() => setFs((v) => !v)}>
-          {fs ? '退出全屏 (Esc)' : '⤢ 全屏'}
-        </button>
-      </div>
+        {fs ? '退出全屏 (Esc)' : '⤢ 全屏'}
+      </button>
       <webview
         ref={wvRef as never}
         src={url}
         partition="persist:guistudy"
         allowpopups={false}
-        style={{ width: '100%', flex: 1, minHeight: 0, border: 0, display: 'block', background: '#fff' }}
+        style={{ width: '100%', height: '100%', border: 0, display: 'block', background: '#fff' }}
       />
     </div>
   )
