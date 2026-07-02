@@ -385,7 +385,8 @@ export default function Practice(): React.ReactElement {
               </Empty>
             )}
           </div>
-        </Card>
+        </div>
+      </Card>
 
         {/* 右栏：控制面板 */}
         <div style={{ width: 340, flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
