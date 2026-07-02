@@ -662,7 +662,9 @@ function ScorePreviewModal({
   return (
     <Modal open={open} title={`预览：${title}`} onClose={onClose} width={960}>
       {url ? (
-        <GuistudyViewer url={url} height="calc(88vh - 120px)" />
+        <div style={{ position: 'relative', width: '100%', height: 640 }}>
+          <GuistudyViewer url={url} height="100%" />
+        </div>
       ) : (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)' }}>
           未找到可预览的曲谱页面。
