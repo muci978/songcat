@@ -355,6 +355,7 @@ export default function Practice(): React.ReactElement {
                 </div>
               </Empty>
             )}
+          </div>
         </Card>
 
         {/* 右栏：控制面板 */}
