@@ -106,7 +106,10 @@ function parseApiItem(it: Record<string, unknown>): GuistudySearchResult | null 
 }
 
 function parseApi(json: unknown): GuistudySearchResult[] {
-  const arr = findScoreArray(json)
+  // guistudy API 格式 {code, msg, data, ...}，优先在 data 里找曲谱数组
+  const root = (json && typeof json === 'object' ? json : null) as Record<string, unknown> | null
+  const data = root && 'data' in root ? (root.data as unknown) : json
+  const arr = findScoreArray(data) ?? findScoreArray(json)
   if (!arr) return []
   return arr
     .map((it) => (it && typeof it === 'object' ? parseApiItem(it as Record<string, unknown>) : null))

@@ -1,9 +1,9 @@
 /**
- * guistudy 曲谱嵌入查看器。
- * - <webview> 加载曲谱页 URL，注入 CSS 隐藏站点 chrome（保守，只藏 header/footer/广告）。
- * - 默认占较大高度；「全屏」按钮调用原生 Fullscreen API 把容器铺满整个屏幕。
+ * guistudy 曲谱嵌入查看器（不下载，嵌入 guistudy 曲谱页，复用其播放/循环/变调）。
+ * - 默认占 90vh（尽量大）；「全屏」切到 fixed inset:0 + 100vh，真正铺满屏幕，Esc 或按钮退出。
+ * - webview 用 flex:1 填满按钮下方所有空间。
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const HIDE_CSS = `
   header, footer, nav,
@@ -17,12 +17,11 @@ const HIDE_CSS = `
 
 interface GuistudyViewerProps {
   url: string
-  /** 容器高度，默认 82vh（尽量大，方便看谱） */
   height?: string
 }
 
-export function GuistudyViewer({ url, height = '82vh' }: GuistudyViewerProps): React.ReactElement {
-  const wrapRef = useRef<HTMLDivElement>(null)
+export function GuistudyViewer({ url, height = '90vh' }: GuistudyViewerProps): React.ReactElement {
+  const [fs, setFs] = useState(false)
   const wvRef = useRef<HTMLElement & {
     insertCSS?: (css: string) => Promise<unknown>
     addEventListener: (t: string, cb: () => void) => void
@@ -43,43 +42,47 @@ export function GuistudyViewer({ url, height = '82vh' }: GuistudyViewerProps): R
     }
   }, [url])
 
-  const toggleFullscreen = () => {
-    const el = wrapRef.current
-    if (!el) return
-    if (document.fullscreenElement) {
-      void document.exitFullscreen()
-    } else {
-      void el.requestFullscreen()
+  // Esc 退出全屏
+  useEffect(() => {
+    if (!fs) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFs(false)
     }
-  }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fs])
 
   return (
     <div
-      ref={wrapRef}
       style={{
-        position: 'relative',
-        height,
-        // 全屏时铺满整个屏幕（:fullscreen 伪类）
+        position: fs ? 'fixed' : 'relative',
+        inset: fs ? 0 : 'auto',
+        zIndex: fs ? 9999 : 'auto',
+        width: '100%',
+        height: fs ? '100vh' : height,
         background: '#fff',
-        borderRadius: 8,
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: fs ? 0 : 8,
         overflow: 'hidden'
       }}
     >
+      <div
+        className="row-between"
+        style={{ flex: '0 0 auto', padding: '6px 8px', background: 'var(--bg-subtle)' }}
+      >
+        <span className="hint">guistudy 曲谱（嵌入查看，可播放 / 循环 / 变调）</span>
+        <button className="btn btn-sm" onClick={() => setFs((v) => !v)}>
+          {fs ? '退出全屏 (Esc)' : '⤢ 全屏'}
+        </button>
+      </div>
       <webview
         ref={wvRef as never}
         src={url}
         partition="persist:guistudy"
         allowpopups={false}
-        style={{ width: '100%', height: '100%', border: 0, display: 'block', background: '#fff' }}
+        style={{ width: '100%', flex: 1, minHeight: 0, border: 0, display: 'block', background: '#fff' }}
       />
-      <button
-        className="btn btn-sm"
-        onClick={toggleFullscreen}
-        title="全屏查看曲谱（Esc 退出）"
-        style={{ position: 'absolute', top: 8, right: 8, opacity: 0.85 }}
-      >
-        ⛶ 全屏
-      </button>
     </div>
   )
 }
