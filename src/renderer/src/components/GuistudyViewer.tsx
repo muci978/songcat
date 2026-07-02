@@ -78,7 +78,7 @@ export function GuistudyViewer({ url, height = 'calc(100vh - 160px)' }: Guistudy
         allowpopups={false}
         style={{
           width: '100%',
-          height: fs ? '100vh' : 'calc(100vh - 160px)',
+          height: fs ? '100vh' : '100%',
           border: 0,
           display: 'block',
           background: '#fff'

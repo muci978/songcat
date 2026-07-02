@@ -10,7 +10,8 @@ import type {
 import { DEEPSEEK_PRIVACY_TEXT, DISCLAIMER_TEXT } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { toast } from '../stores/toast'
-import { Card, Empty, Spinner, useAsyncAction } from '../components/ui'
+import { Card, Empty, Modal, Spinner, useAsyncAction } from '../components/ui'
+import { GuistudyViewer } from '../components/GuistudyViewer'
 
 type TabKey = 'manual' | 'sources' | 'ai' | 'link'
 
@@ -209,6 +210,11 @@ function SourcesTab(): React.ReactElement {
   const [results, setResults] = useState<FreeSourceSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const busyRef = useRef<Record<string, boolean>>({})
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewTitle, setPreviewTitle] = useState('')
+  const [renameTarget, setRenameTarget] = useState<{
+    songId: string; title: string; artist: string | null
+  } | null>(null)
 
   const search = async () => {
     const q = query.trim()
@@ -242,7 +248,7 @@ function SourcesTab(): React.ReactElement {
           instrument: r.instrument ?? undefined
         })
       )
-      toast.success(`已入库：${song.title}`)
+      setRenameTarget({ songId: song.id, title: song.title, artist: song.artist })
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -301,17 +307,43 @@ function SourcesTab(): React.ReactElement {
                 {r.typeLabel && <span className="tag">{r.typeLabel}</span>}
                 {r.keyLabel && <span className="tag">{r.keyLabel}</span>}
               </div>
-              <button
-                className="btn btn-sm btn-primary"
-                disabled={busyRef[r.url]}
-                onClick={() => void importToLibrary(r)}
-              >
-                {busyRef[r.url] ? '入库中…' : '一键入库'}
-              </button>
+              <div className="row" style={{ gap: 8 }}>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => {
+                    setPreviewUrl(r.url)
+                    setPreviewTitle(r.title)
+                  }}
+                >
+                  预览
+                </button>
+                <button
+                  className="btn btn-sm btn-primary"
+                  disabled={busyRef[r.url]}
+                  onClick={() => void importToLibrary(r)}
+                >
+                  {busyRef[r.url] ? '入库中…' : '一键入库'}
+                </button>
+              </div>
             </Card>
           ))}
         </div>
       )}
+
+      <ScorePreviewModal
+        open={previewUrl !== null}
+        url={previewUrl}
+        title={previewTitle}
+        onClose={() => { setPreviewUrl(null); setPreviewTitle('') }}
+      />
+      <RenameModal
+        open={renameTarget !== null}
+        songId={renameTarget?.songId ?? ''}
+        title={renameTarget?.title ?? ''}
+        artist={renameTarget?.artist ?? null}
+        onClose={() => setRenameTarget(null)}
+        onSaved={() => setRenameTarget(null)}
+      />
     </div>
   )
 }
@@ -324,6 +356,12 @@ function AiTab(): React.ReactElement {
   const [query, setQuery] = useState('')
   const [candidates, setCandidates] = useState<AiCandidate[] | null>(null)
   const [searching, setSearching] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewTitle, setPreviewTitle] = useState('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [renameTarget, setRenameTarget] = useState<{
+    songId: string; title: string; artist: string | null
+  } | null>(null)
 
   const search = async () => {
     const q = query.trim()
@@ -349,6 +387,24 @@ function AiTab(): React.ReactElement {
     }
   }
 
+  const handlePreview = async (c: AiCandidate) => {
+    setPreviewLoading(true)
+    setPreviewTitle(c.title)
+    try {
+      const kw = c.artist ? `${c.title} ${c.artist}` : c.title
+      const results = await unwrap(api.sources.searchFreeSources(kw))
+      if (results.length > 0) {
+        setPreviewUrl(results[0].url)
+      } else {
+        setPreviewUrl(null)
+      }
+    } catch {
+      setPreviewUrl(null)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   const addToLibrary = async (c: AiCandidate) => {
     try {
       const song = await unwrap(api.library.findOrCreate(c.title, c.artist || undefined))
@@ -371,13 +427,11 @@ function AiTab(): React.ReactElement {
               instrument: top.instrument ?? undefined
             })
           )
-          toast.success(`已入库《${song.title}》并关联曲谱`)
-          return
         }
       } catch {
         // 自动找谱失败不阻塞入库
       }
-      toast.success(`已入库《${song.title}》；未自动找到曲谱，可去「免费资源站」手动搜`)
+      setRenameTarget({ songId: song.id, title: song.title, artist: song.artist })
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -429,12 +483,21 @@ function AiTab(): React.ReactElement {
                     {Math.round(c.confidence * 100)}%
                   </div>
                 </div>
-                <button
-                  className="btn btn-sm btn-primary"
-                  onClick={() => void addToLibrary(c)}
-                >
-                  加入曲库
-                </button>
+                <div className="row" style={{ gap: 8 }}>
+                  <button
+                    className="btn btn-sm"
+                    disabled={previewLoading}
+                    onClick={() => void handlePreview(c)}
+                  >
+                    {previewLoading ? '搜索中…' : '预览'}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => void addToLibrary(c)}
+                  >
+                    加入曲库
+                  </button>
+                </div>
               </div>
 
               {c.suggestedQueries.length > 0 && (
@@ -484,6 +547,21 @@ function AiTab(): React.ReactElement {
           ))}
         </div>
       )}
+
+      <ScorePreviewModal
+        open={previewUrl !== null || (previewTitle !== '' && previewLoading)}
+        url={previewUrl}
+        title={previewTitle}
+        onClose={() => { setPreviewUrl(null); setPreviewTitle('') }}
+      />
+      <RenameModal
+        open={renameTarget !== null}
+        songId={renameTarget?.songId ?? ''}
+        title={renameTarget?.title ?? ''}
+        artist={renameTarget?.artist ?? null}
+        onClose={() => setRenameTarget(null)}
+        onSaved={() => setRenameTarget(null)}
+      />
     </div>
   )
 }
@@ -562,5 +640,113 @@ function LinkTab(): React.ReactElement {
         </button>
       </div>
     </Card>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 曲谱预览 Modal                                                       */
+/* ------------------------------------------------------------------ */
+
+function ScorePreviewModal({
+  open,
+  url,
+  title,
+  onClose
+}: {
+  open: boolean
+  url: string | null
+  title: string
+  onClose: () => void
+}): React.ReactElement | null {
+  if (!open) return null
+  return (
+    <Modal open={open} title={`预览：${title}`} onClose={onClose} width={960}>
+      {url ? (
+        <GuistudyViewer url={url} height="70vh" />
+      ) : (
+        <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)' }}>
+          未找到可预览的曲谱页面。
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* 入库后重命名 Modal                                                    */
+/* ------------------------------------------------------------------ */
+
+function RenameModal({
+  open,
+  songId,
+  title: initialTitle,
+  artist: initialArtist,
+  onClose,
+  onSaved
+}: {
+  open: boolean
+  songId: string
+  title: string
+  artist: string | null
+  onClose: () => void
+  onSaved: () => void
+}): React.ReactElement | null {
+  const [title, setTitle] = useState(initialTitle)
+  const [artist, setArtist] = useState(initialArtist ?? '')
+  const action = useAsyncAction()
+
+  useEffect(() => {
+    if (open) {
+      setTitle(initialTitle)
+      setArtist(initialArtist ?? '')
+    }
+  }, [open, initialTitle, initialArtist])
+
+  const save = () =>
+    action.run(async () => {
+      if (!title.trim()) throw new Error('歌名不能为空')
+      await unwrap(
+        api.library.update(songId, {
+          title: title.trim(),
+          artist: artist.trim() || null
+        })
+      )
+      onSaved()
+    }, '曲名已更新')
+
+  return (
+    <Modal
+      open={open}
+      title="确认入库信息"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            保持原名
+          </button>
+          <button className="btn btn-primary" disabled={action.loading} onClick={save}>
+            {action.loading ? '保存中…' : '保存'}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label className="label">歌名 *</label>
+        <input
+          className="input"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+        />
+      </div>
+      <div className="field">
+        <label className="label">艺人</label>
+        <input
+          className="input"
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+        />
+      </div>
+    </Modal>
   )
 }

@@ -273,7 +273,7 @@ export default function Practice(): React.ReactElement {
   const assetUrl = (assetId: string): string => `songcat-asset://${assetId}`
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 48px)' }}>
       {/* 顶部信息 */}
       <div className="page-header">
         <div>
@@ -298,8 +298,9 @@ export default function Practice(): React.ReactElement {
         </div>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: '1fr' }}>
-        {/* 曲谱查看区 */}
+      {/* 主区域：两栏 */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 12 }}>
+        {/* 左栏：曲谱查看区 */}
         <Card
           title="曲谱"
           actions={
@@ -309,50 +310,55 @@ export default function Practice(): React.ReactElement {
               </button>
             ) : undefined
           }
+          style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
-          {guistudyScore && guistudyScore.sourceUrl ? (
-            <GuistudyViewer url={guistudyScore.sourceUrl} />
-          ) : fileScore ? (
-            fileScore.type === 'pdf' ? (
-              <iframe
-                title={fileScore.title ?? '曲谱'}
-                src={assetUrl(fileScore.id)}
-                style={{ width: '100%', height: '70vh', border: '0', borderRadius: 8 }}
-              />
-            ) : fileScore.type === 'image' ? (
-              <img src={assetUrl(fileScore.id)} alt={fileScore.title ?? '曲谱'} style={{ maxWidth: '100%' }} />
-            ) : null
-          ) : linkScore ? (
-            <div className="row">
-              <button
-                className="btn btn-primary"
-                onClick={() =>
-                  linkScore.sourceUrl
-                    ? void api.system.openExternal(linkScore.sourceUrl).catch(() => {})
-                    : toast.error('该曲谱未提供链接')
-                }
-              >
-                打开曲谱链接 ↗
-              </button>
-            </div>
-          ) : (
-            <Empty icon="🎼">
-              <div>这首歌还没有曲谱。</div>
-              <div className="row" style={{ marginTop: 12 }}>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            {guistudyScore && guistudyScore.sourceUrl ? (
+              <GuistudyViewer url={guistudyScore.sourceUrl} height="100%" />
+            ) : fileScore ? (
+              fileScore.type === 'pdf' ? (
+                <iframe
+                  title={fileScore.title ?? '曲谱'}
+                  src={assetUrl(fileScore.id)}
+                  style={{ width: '100%', height: '100%', border: '0', borderRadius: 8 }}
+                />
+              ) : fileScore.type === 'image' ? (
+                <img src={assetUrl(fileScore.id)} alt={fileScore.title ?? '曲谱'} style={{ maxWidth: '100%' }} />
+              ) : null
+            ) : linkScore ? (
+              <div className="row">
                 <button
                   className="btn btn-primary"
-                  disabled={importAction.loading}
-                  onClick={handleImportScore}
+                  onClick={() =>
+                    linkScore.sourceUrl
+                      ? void api.system.openExternal(linkScore.sourceUrl).catch(() => {})
+                      : toast.error('该曲谱未提供链接')
+                  }
                 >
-                  {importAction.loading ? '导入中…' : '导入曲谱'}
+                  打开曲谱链接 ↗
                 </button>
               </div>
-            </Empty>
-          )}
+            ) : (
+              <Empty icon="🎼">
+                <div>这首歌还没有曲谱。</div>
+                <div className="row" style={{ marginTop: 12 }}>
+                  <button
+                    className="btn btn-primary"
+                    disabled={importAction.loading}
+                    onClick={handleImportScore}
+                  >
+                    {importAction.loading ? '导入中…' : '导入曲谱'}
+                  </button>
+                </div>
+              </Empty>
+            )}
+          </div>
         </Card>
 
-        {/* 练习计时器 */}
-        <Card title="练习计时器" style={{ marginTop: 16 }}>
+        {/* 右栏：控制面板 */}
+        <div style={{ width: 340, flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* 练习计时器 */}
+          <Card title="练习计时器">
           <div className="row-between" style={{ alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: 40, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
@@ -397,7 +403,6 @@ export default function Practice(): React.ReactElement {
         {/* 备注 */}
         <Card
           title="备注"
-          style={{ marginTop: 16 }}
           actions={
             !editingNotes ? (
               <button className="btn btn-sm btn-ghost" onClick={() => {
@@ -449,7 +454,7 @@ export default function Practice(): React.ReactElement {
         </Card>
 
         {/* 录音 */}
-        <Card title="录音" style={{ marginTop: 16 }}>
+        <Card title="录音">
           {recording ? (
             <div className="row-between" style={{ alignItems: 'center' }}>
               <div className="row" style={{ gap: 8, alignItems: 'center' }}>
@@ -501,7 +506,7 @@ export default function Practice(): React.ReactElement {
         </Card>
 
         {/* 最近练习记录 */}
-        <Card title="最近练习记录" style={{ marginTop: 16 }}>
+        <Card title="最近练习记录">
           {detail.recentSessions.length > 0 ? (
             detail.recentSessions.map((s) => (
               <div key={s.id} className="list-row" style={{ gridTemplateColumns: '1fr auto' }}>
@@ -523,6 +528,7 @@ export default function Practice(): React.ReactElement {
             <Empty icon="⏱">还没有练习记录。</Empty>
           )}
         </Card>
+        </div>
       </div>
 
       <ConfirmDialog
