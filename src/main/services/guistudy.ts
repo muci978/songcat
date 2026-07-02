@@ -1,103 +1,151 @@
 /**
  * guistudy（谱全了）集成服务。
  *
- * 设计：本地只存 guistudy 曲谱页 URL 索引，不下载文件。
- *   - 搜索：用隐藏 BrowserWindow 加载 guistudy 搜索页，等 SPA 渲染后从 DOM 提取曲谱列表。
- *   - 查看：renderer 用 webview 嵌入曲谱页 URL（/tabs/{id}），注入 CSS 让其看起来像 SongCat 原生。
+ * 关键认知：guistudy 搜索不靠 URL SSR（/tabs?keyword= 的 SSR 是默认列表，不含关键词），
+ * 真正搜索是前端 JS 调 api.insstudy.com。而 api.insstudy.com 从外部直连不通（000/防盗链），
+ * 只能从 guistudy.com 来源（隐藏 BrowserWindow 内）fetch。
  *
- * 注意：guistudy 是 Nuxt/Vite SPA，DOM 结构可能随站点改版变化。提取逻辑用启发式
- *       （找所有 /tabs/{id} 链接 + 父卡片文字），首次在 Windows 运行时若结果不对，
- *       需在此调整 EXTRACT_SCRIPT 的选择器。带浏览器 UA + Referer 模拟正常访问，
- *       不破解付费/登录/验证码。
+ * 故搜索策略：
+ *   1. 隐藏窗口加载 guistudy.com（建立来源/session）
+ *   2. 在页面内 executeJavaScript 直接 fetch api.insstudy.com 搜索（试多个候选端点）
+ *   3. 拿到 JSON 就解析（可靠）
+ *   4. 否则回退：加载 /tabs?keyword= 等 JS 渲染后 DOM 提取
+ *
+ * 注意：api 端点/响应结构需在 Windows 实测后微调（端点列表在 API_ENDPOINTS）。
  */
 import { BrowserWindow } from 'electron'
 import type { Instrument } from '@shared'
 
 export const GUISTUDY_BASE = 'https://guistudy.com'
+const API_BASE = 'https://api.insstudy.com'
 const CHROME_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-/** guistudy 搜索结果（映射到 FreeSourceSearchResult） */
 export interface GuistudySearchResult {
   title: string
   artist: string | null
-  /** 曲谱详情页 URL，形如 https://guistudy.com/tabs/1Oy6jj7V1 */
   url: string
   instrument: Instrument
   screenshotUrl: string | null
-  /** 弹唱/指弹 */
   typeLabel: string | null
-  /** 调，如 G/C/Eb */
   keyLabel: string | null
 }
 
-/** 在搜索页 DOM 里提取曲谱卡片的脚本（注入到页面执行） */
-const EXTRACT_SCRIPT = `(() => {
-  const seen = new Set();
-  const out = [];
-  // 曲谱详情页链接：/tabs/{id}（排除 /tabs?style= 列表分类、/tabs、/ukulele 等导航）
+/** 候选 API 端点（路径），将依次尝试并拼 keyword 参数 */
+const API_ENDPOINTS = [
+  '/api/score/search',
+  '/api/score/searchList',
+  '/api/score/list',
+  '/api/tabs/search',
+  '/api/search',
+  '/score/search',
+  '/api/score/page'
+]
+
+/** 在 guistudy 页面上下文里 fetch api.insstudy.com（同源防盗链可通过），返回原始 JSON 或 null */
+function buildApiScript(q: string): string {
+  return `
+(async () => {
+  const kw = ${JSON.stringify(q)};
+  const tried = [];
+  for (const ep of ${JSON.stringify(API_ENDPOINTS)}) {
+    for (const qs of [
+      'keyword=' + encodeURIComponent(kw) + '&no=1&size=20',
+      'keyword=' + encodeURIComponent(kw),
+      'name=' + encodeURIComponent(kw),
+      'wd=' + encodeURIComponent(kw)
+    ]) {
+      const url = '${API_BASE}' + ep + '?' + qs;
+      try {
+        const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        tried.push(ep + '?' + qs.split('=')[0] + ' -> ' + r.status);
+        if (!r.ok) continue;
+        const ct = r.headers.get('content-type') || '';
+        if (ct.indexOf('json') < 0) continue;
+        const j = await r.json();
+        return { ok: true, endpoint: ep, json: j };
+      } catch (e) {
+        tried.push(ep + ' ERR ' + (e && e.message ? e.message : e));
+      }
+    }
+  }
+  return { ok: false, tried };
+})()
+`
+}
+
+/** 在嵌套对象里找第一个"像曲谱列表"的数组 */
+function findScoreArray(obj: unknown): unknown[] | null {
+  if (Array.isArray(obj)) {
+    if (obj.length > 0 && obj[0] && typeof obj[0] === 'object') return obj
+    return null
+  }
+  if (obj && typeof obj === 'object') {
+    for (const v of Object.values(obj as Record<string, unknown>)) {
+      const a = findScoreArray(v)
+      if (a && a.length > 0) return a
+    }
+  }
+  return null
+}
+
+function parseApiItem(it: Record<string, unknown>): GuistudySearchResult | null {
+  const id = (it.id || it.scoreId || it.uuid) as string | undefined
+  const title = (it.name || it.title || it.scoreName) as string | undefined
+  if (!title) return null
+  const sid = (it.screenshot || it.img || it.cover || it.pic) as string | undefined
+  return {
+    title,
+    artist: ((it.singer || it.artist || it.singerName) as string) || null,
+    url: id ? `${GUISTUDY_BASE}/tabs/${id}` : ((it.url || it.detailUrl) as string) || '',
+    instrument: 'guitar',
+    screenshotUrl: sid || (id ? `https://i.insstudy.com/file/gtp/screenshot/${id}.jpg` : null),
+    typeLabel: ((it.typeName || it.type) as string) || null,
+    keyLabel: ((it.key || it.tone || it.toneName) as string) || null
+  }
+}
+
+function parseApi(json: unknown): GuistudySearchResult[] {
+  const arr = findScoreArray(json)
+  if (!arr) return []
+  return arr
+    .map((it) => (it && typeof it === 'object' ? parseApiItem(it as Record<string, unknown>) : null))
+    .filter((x): x is GuistudySearchResult => !!x && !!(x.url || x.screenshotUrl))
+}
+
+const DOM_EXTRACT = `(() => {
+  const seen = new Set(); const out = [];
   document.querySelectorAll('a[href]').forEach(a => {
-    const href = a.href;
-    const m = href.match(/\\/tabs\\/([^?&#]+)$/);
-    if (!m) return;                  // 只取 /tabs/{id} 详情链接
-    if (seen.has(href)) return;
-    seen.add(href);
-    // 父卡片（尝试多种容器）
+    const m = (a.href || '').match(/\\/tabs\\/([^?&#]+)$/);
+    if (!m) return;
+    if (seen.has(a.href)) return; seen.add(a.href);
     let card = a.closest('li, article, [class*="card"], [class*="item"], [class*="score"], [class*="list"]');
-    if (!card) card = a.parentElement && a.parentElement.parentElement ? a.parentElement.parentElement : a.parentElement;
-    const text = (card ? card.textContent : a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 400);
-    const img = (card && card.querySelector ? card.querySelector('img') : null) || a.querySelector('img');
-    const imgSrc = img && (img.src || img.getAttribute('data-src') || '');
-    out.push({ href, text, img: imgSrc || '' });
+    if (!card) card = a.parentElement;
+    const text = (card ? card.textContent : a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 300);
+    const img = card && card.querySelector ? card.querySelector('img') : null;
+    out.push({ href: a.href, text, img: (img && (img.src || img.getAttribute('data-src'))) || '' });
   });
   return out;
 })()`
 
-interface RawItem {
-  href: string
-  text: string
-  img: string
-}
-
-/** 轮询直到 DOM 出现 /tabs/{id} 链接或超时（秒） */
-async function waitForResults(win: BrowserWindow, timeoutMs = 15000): Promise<boolean> {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    const ok = await win.webContents
-      .executeJavaScript(`!!document.querySelector('a[href*="/tabs/"]')`)
-      .catch(() => false)
-    if (ok) return true
-    await new Promise((r) => setTimeout(r, 500))
-  }
-  return false
-}
-
-function parseItem(it: RawItem): GuistudySearchResult | null {
+function parseDomItem(it: { href: string; text: string; img: string }): GuistudySearchResult | null {
   const artistMatch = it.text.match(/歌手[:：]\s*([^\s,，/]+)/)
   const keyMatch = it.text.match(/\b([A-G](?:b|#)?)调\b/)
   const typeMatch = it.text.match(/(弹唱|指弹)/)
-  const instrument: Instrument = /ukulele/i.test(it.href) ? 'ukulele' : 'guitar'
-  // 标题：去掉"歌手:..."之后的部分，再去掉类型/调
-  let title = it.text
-  const cut = title.split(/歌手[:：]/)[0] || ''
-  title = cut.replace(/(弹唱|指弹)/g, '').replace(/\b[A-G](?:b|#)?调\b/g, '').trim()
-  title = title.split(/\s{2,}/)[0].slice(0, 60)
+  let title = it.text.split(/歌手[:：]/)[0] || ''
+  title = title.replace(/(弹唱|指弹)/g, '').replace(/\b[A-G](?:b|#)?调\b/g, '').trim().split(/\s{2,}/)[0].slice(0, 60)
   if (!title) return null
   return {
     title,
     artist: artistMatch?.[1] || null,
     url: it.href,
-    instrument,
+    instrument: /ukulele/i.test(it.href) ? 'ukulele' : 'guitar',
     screenshotUrl: it.img || null,
     typeLabel: typeMatch?.[1] || null,
     keyLabel: keyMatch?.[1] || null
   }
 }
 
-/**
- * 在 guistudy 上搜索关键词，返回曲谱列表。
- * 用隐藏 BrowserWindow 加载搜索页 → 等渲染 → DOM 提取。
- */
 export async function searchGuistudy(query: string): Promise<GuistudySearchResult[]> {
   const q = query.trim()
   if (!q) return []
@@ -105,27 +153,47 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
     show: false,
     width: 1280,
     height: 900,
-    webPreferences: {
-      sandbox: true,
-      contextIsolation: true,
-      nodeIntegration: false,
-      partition: 'persist:guistudy'
-    }
+    webPreferences: { sandbox: false, contextIsolation: true, nodeIntegration: false, partition: 'persist:guistudy' }
   })
   win.webContents.setUserAgent(CHROME_UA)
   try {
+    await win.loadURL(`${GUISTUDY_BASE}/tabs`)
+    await new Promise((r) => setTimeout(r, 1500))
+
+    // 优先：在页面内 fetch api.insstudy.com
+    const api = (await win.webContents.executeJavaScript(buildApiScript(q)).catch(() => null)) as
+      | { ok: true; endpoint: string; json: unknown }
+      | { ok: false; tried: string[] }
+      | null
+    if (api && (api as { ok?: boolean }).ok) {
+      const results = parseApi((api as { json: unknown }).json)
+      if (results.length > 0) return results
+    }
+
+    // 回退：DOM 提取（加载关键词页，等 JS 渲染）
     await win.loadURL(`${GUISTUDY_BASE}/tabs?keyword=${encodeURIComponent(q)}`)
-    await waitForResults(win)
-    // 渲染后再多等一拍，确保卡片完整
-    await new Promise((r) => setTimeout(r, 800))
-    const raw = (await win.webContents.executeJavaScript(EXTRACT_SCRIPT)) as RawItem[]
+    for (let i = 0; i < 20; i++) {
+      const has = await win.webContents.executeJavaScript(`!!document.querySelector('a[href*="/tabs/"]')`).catch(() => false)
+      if (has) break
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    await new Promise((r) => setTimeout(r, 1500))
+    const raw = (await win.webContents.executeJavaScript(DOM_EXTRACT).catch(() => [])) as {
+      href: string
+      text: string
+      img: string
+    }[]
     const seen = new Set<string>()
     const out: GuistudySearchResult[] = []
     for (const it of raw || []) {
       if (seen.has(it.href)) continue
       seen.add(it.href)
-      const parsed = parseItem(it)
-      if (parsed) out.push(parsed)
+      const p = parseDomItem(it)
+      if (p) out.push(p)
+    }
+    if (out.length === 0) {
+      const tried = api && !(api as { ok: boolean }).ok ? (api as { tried: string[] }).tried.join(' | ') : 'api 无结果'
+      throw new Error(`guistudy 未找到「${q}」的结果（API 尝试：${tried}）。可能站点改版，需调 guistudy.ts`)
     }
     return out
   } finally {

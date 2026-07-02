@@ -117,7 +117,8 @@ export const songsRepository = {
       params.initial = `${q.initial.toUpperCase()}%`
     }
     if (q.hasPdf) {
-      where.push("EXISTS(SELECT 1 FROM score_assets a WHERE a.song_id = s.id AND a.type = 'pdf')")
+      // 「有曲谱」= 有任何 score_asset（含 guistudy 的 link 型、本地 pdf/image 等），不只 pdf
+      where.push('EXISTS(SELECT 1 FROM score_assets a WHERE a.song_id = s.id)')
     }
     if (q.hasRecording) {
       where.push('EXISTS(SELECT 1 FROM recordings r WHERE r.song_id = s.id)')

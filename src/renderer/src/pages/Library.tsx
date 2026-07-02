@@ -49,6 +49,7 @@ export default function Library(): React.ReactElement {
   const [hasPractice, setHasPractice] = useState(false)
   const [view, setView] = useState<'list' | 'grid'>('list')
   const [sortBy, setSortBy] = useState<SortBy>('title')
+  const [letterFilter, setLetterFilter] = useState<string | null>(null)
 
   // 多选 / 批量删除
   const [multiSelect, setMultiSelect] = useState(false)
@@ -88,9 +89,9 @@ export default function Library(): React.ReactElement {
     setSelected(new Set())
   }, [sortBy, multiSelect])
 
-  // 前端排序
+  // 前端排序（先按字母筛选，再排序）
   const sorted = useMemo(() => {
-    const arr = [...songs]
+    const arr = letterFilter ? songs.filter((s) => groupInitial(s) === letterFilter) : [...songs]
     switch (sortBy) {
       case 'title':
         arr.sort((a, b) => {
@@ -117,7 +118,7 @@ export default function Library(): React.ReactElement {
         break
     }
     return arr
-  }, [songs, sortBy])
+  }, [songs, sortBy, letterFilter])
 
   // 标题排序时的字母分组（保持顺序）
   const groups = useMemo(() => {
@@ -136,7 +137,11 @@ export default function Library(): React.ReactElement {
     })
   }, [sorted])
 
-  const availableLetters = useMemo(() => groups.map(([k]) => k), [groups])
+  // 可用字母基于全量歌曲（不受当前筛选影响，否则筛选后字母条会缩水）
+  const availableLetters = useMemo(() => {
+    const s = new Set(songs.map(groupInitial))
+    return [...s].sort((a, b) => (a === '#' ? 1 : b === '#' ? -1 : cmpStr(a, b)))
+  }, [songs])
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -288,7 +293,11 @@ export default function Library(): React.ReactElement {
       ) : songs.length === 0 ? (
         <Empty>曲库为空，或没有匹配的歌曲。去"添加/搜索"页搜索入库吧。</Empty>
       ) : sortBy === 'title' && view === 'list' ? (
-        <AlphabetIndex letters={availableLetters} />
+        <AlphabetIndex
+          letters={availableLetters}
+          activeLetter={letterFilter}
+          onPick={(ch) => setLetterFilter((prev) => (prev === ch ? null : ch))}
+        />
       ) : null}
 
       {!loading && songs.length > 0 && (
@@ -354,22 +363,28 @@ export default function Library(): React.ReactElement {
 
 /* --------------------------- 字母索引条 --------------------------- */
 
-function AlphabetIndex({ letters }: { letters: string[] }): React.ReactElement {
+function AlphabetIndex({
+  letters,
+  activeLetter,
+  onPick
+}: {
+  letters: string[]
+  activeLetter: string | null
+  onPick: (ch: string) => void
+}): React.ReactElement {
   const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const present = new Set(letters)
-  const onClick = (ch: string) => {
-    const el = document.getElementById(`group-${ch}`)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
   return (
     <Card style={{ padding: 8, marginBottom: 12 }}>
       <div className="row wrap" style={{ gap: 2 }}>
         {[...all].map((ch) => (
           <button
             key={ch}
-            className={`btn btn-sm ${present.has(ch) ? '' : 'btn-ghost'}`}
+            className={`btn btn-sm ${
+              activeLetter === ch ? 'btn-primary' : present.has(ch) ? '' : 'btn-ghost'
+            }`}
             disabled={!present.has(ch)}
-            onClick={() => onClick(ch)}
+            onClick={() => onPick(ch)}
             style={{
               minWidth: 28,
               padding: '2px 0',
@@ -382,9 +397,9 @@ function AlphabetIndex({ letters }: { letters: string[] }): React.ReactElement {
         ))}
         <button
           key="#"
-          className={`btn btn-sm ${present.has('#') ? '' : 'btn-ghost'}`}
+          className={`btn btn-sm ${activeLetter === '#' ? 'btn-primary' : present.has('#') ? '' : 'btn-ghost'}`}
           disabled={!present.has('#')}
-          onClick={() => onClick('#')}
+          onClick={() => onPick('#')}
           style={{
             minWidth: 32,
             padding: '2px 0',

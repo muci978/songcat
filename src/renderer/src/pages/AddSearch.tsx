@@ -357,7 +357,11 @@ function AiTab(): React.ReactElement {
       try {
         const results = await unwrap(api.sources.searchFreeSources(kw))
         if (results.length > 0) {
-          const top = results[0]
+          // 优先取标题匹配的，避免搜索结果含其他歌时取到不相关的
+          const matched = results.filter(
+            (r) => r.title.includes(c.title) || c.title.includes(r.title) || (r.artist && c.artist && r.artist.includes(c.artist))
+          )
+          const top = matched[0] ?? results[0]
           await unwrap(
             api.assets.addScoreLink(song.id, {
               url: top.url,

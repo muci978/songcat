@@ -7,18 +7,17 @@
  */
 import { useEffect, useRef } from 'react'
 
-// 隐藏 guistudy 站点 chrome（header/nav/footer/广告/侧栏/回到顶部/下载引导等），只留曲谱区
+// 只隐藏明确的站点级导航/页脚/广告/回到顶部/下载引导。
+// 注意：不要用宽泛的 [class*="header"]/[class*="content"]/[class*="sidebar"] 等，
+// 那会误伤 guistudy 曲谱查看器，导致嵌入后空白。
 const HIDE_CSS = `
-  header, nav, footer,
-  [class*="header"], [class*="nav-bar"], [class*="navbar"], [class*="footer"],
-  [class*="ad"], [class*="banner"], [class*="download-app"], [class*="app-download"],
-  [class*="back-to-top"], [class*="backTop"], [class*="sidebar"], [class*="menu"],
-  [class*="popup"], [class*="modal-mask"], [class*="login"] {
+  header, footer, nav,
+  [class*="back-to-top"], [class*="backTop"],
+  [class*="download-app"], [class*="app-download"],
+  [class*="popup-ad"], [class*="ad-banner"] {
     display: none !important;
   }
   body, html { background: #faf7f2 !important; }
-  /* 取消可能的全局最大宽度限制，让曲谱区占满 */
-  .nuxt-content, [class*="container"], [class*="content"], main { max-width: 100% !important; padding: 0 !important; }
 `
 
 interface GuistudyViewerProps {
