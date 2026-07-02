@@ -1,15 +1,10 @@
 /**
- * guistudy 曲谱嵌入查看器（设计：不下载，直接嵌入 guistudy 曲谱页，复用其播放/循环/变调）。
- * 用 Electron <webview> 加载曲谱页 URL，注入 CSS 隐藏 guistudy 的导航/页脚/广告/品牌，
- * 只留曲谱查看器，让用户感觉是 SongCat 原生的一部分。
- *
- * 注意：guistudy 页面 DOM 结构可能随改版变化，HIDE_CSS 选择器需在 Windows 实测后微调。
+ * guistudy 曲谱嵌入查看器。
+ * - <webview> 加载曲谱页 URL，注入 CSS 隐藏站点 chrome（保守，只藏 header/footer/广告）。
+ * - 默认占较大高度；「全屏」按钮调用原生 Fullscreen API 把容器铺满整个屏幕。
  */
 import { useEffect, useRef } from 'react'
 
-// 只隐藏明确的站点级导航/页脚/广告/回到顶部/下载引导。
-// 注意：不要用宽泛的 [class*="header"]/[class*="content"]/[class*="sidebar"] 等，
-// 那会误伤 guistudy 曲谱查看器，导致嵌入后空白。
 const HIDE_CSS = `
   header, footer, nav,
   [class*="back-to-top"], [class*="backTop"],
@@ -17,24 +12,25 @@ const HIDE_CSS = `
   [class*="popup-ad"], [class*="ad-banner"] {
     display: none !important;
   }
-  body, html { background: #faf7f2 !important; }
+  body, html { background: #fff !important; }
 `
 
 interface GuistudyViewerProps {
   url: string
-  /** 高度，默认 75vh */
+  /** 容器高度，默认 82vh（尽量大，方便看谱） */
   height?: string
 }
 
-export function GuistudyViewer({ url, height = '75vh' }: GuistudyViewerProps): React.ReactElement {
-  const ref = useRef<HTMLElement & {
+export function GuistudyViewer({ url, height = '82vh' }: GuistudyViewerProps): React.ReactElement {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const wvRef = useRef<HTMLElement & {
     insertCSS?: (css: string) => Promise<unknown>
-    addEventListener: (type: string, cb: () => void) => void
-    removeEventListener: (type: string, cb: () => void) => void
+    addEventListener: (t: string, cb: () => void) => void
+    removeEventListener: (t: string, cb: () => void) => void
   }>(null)
 
   useEffect(() => {
-    const wv = ref.current
+    const wv = wvRef.current
     if (!wv) return
     const inject = () => {
       wv.insertCSS?.(HIDE_CSS).catch(() => {})
@@ -47,14 +43,43 @@ export function GuistudyViewer({ url, height = '75vh' }: GuistudyViewerProps): R
     }
   }, [url])
 
+  const toggleFullscreen = () => {
+    const el = wrapRef.current
+    if (!el) return
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    } else {
+      void el.requestFullscreen()
+    }
+  }
+
   return (
-    <webview
-      ref={ref as never}
-      src={url}
-      // 用独立 partition 隔离 cookie；禁用 node integration 保持安全
-      partition="persist:guistudy"
-      allowpopups={false}
-      style={{ width: '100%', height, border: 0, borderRadius: 8, display: 'block' }}
-    />
+    <div
+      ref={wrapRef}
+      style={{
+        position: 'relative',
+        height,
+        // 全屏时铺满整个屏幕（:fullscreen 伪类）
+        background: '#fff',
+        borderRadius: 8,
+        overflow: 'hidden'
+      }}
+    >
+      <webview
+        ref={wvRef as never}
+        src={url}
+        partition="persist:guistudy"
+        allowpopups={false}
+        style={{ width: '100%', height: '100%', border: 0, display: 'block', background: '#fff' }}
+      />
+      <button
+        className="btn btn-sm"
+        onClick={toggleFullscreen}
+        title="全屏查看曲谱（Esc 退出）"
+        style={{ position: 'absolute', top: 8, right: 8, opacity: 0.85 }}
+      >
+        ⛶ 全屏
+      </button>
+    </div>
   )
 }

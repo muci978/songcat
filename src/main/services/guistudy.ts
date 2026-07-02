@@ -156,6 +156,15 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
     webPreferences: { sandbox: false, contextIsolation: true, nodeIntegration: false, partition: 'persist:guistudy' }
   })
   win.webContents.setUserAgent(CHROME_UA)
+  // 监听对 api.insstudy.com 的请求，捕获 guistudy 自己调的真实搜索 API（写到错误信息便于排查/写死）
+  const apiCalls: string[] = []
+  win.webContents.session.webRequest.onBeforeRequest(
+    { urls: ['https://api.insstudy.com/*'] },
+    (details, cb) => {
+      apiCalls.push(details.url)
+      cb({})
+    }
+  )
   try {
     await win.loadURL(`${GUISTUDY_BASE}/tabs`)
     await new Promise((r) => setTimeout(r, 1500))
@@ -192,8 +201,18 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
       if (p) out.push(p)
     }
     if (out.length === 0) {
-      const tried = api && !(api as { ok: boolean }).ok ? (api as { tried: string[] }).tried.join(' | ') : 'api 无结果'
-      throw new Error(`guistudy 未找到「${q}」的结果（API 尝试：${tried}）。可能站点改版，需调 guistudy.ts`)
+      const diag = await win.webContents
+        .executeJavaScript(
+          `JSON.stringify({title: document.title, url: location.href, links: document.querySelectorAll('a[href*="/tabs/"]').length, hasKw: document.body.innerText.indexOf(${JSON.stringify(q)}) >= 0, body: document.body.innerText.slice(0, 150)})`
+        )
+        .catch(() => '{}')
+      const tried =
+        api && !(api as { ok: boolean }).ok
+          ? (api as { tried: string[] }).tried.join(' | ')
+          : 'api 有响应但解析为空'
+      throw new Error(
+        `未找到「${q}」。API 尝试: ${tried}。guistudy 实际请求: ${apiCalls.length ? apiCalls.slice(0, 5).join(' | ') : '（无，可能 /tabs?keyword= 不触发搜索）'}。页面: ${diag}`
+      )
     }
     return out
   } finally {

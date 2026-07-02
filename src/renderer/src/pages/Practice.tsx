@@ -311,7 +311,7 @@ export default function Practice(): React.ReactElement {
           }
         >
           {guistudyScore && guistudyScore.sourceUrl ? (
-            <GuistudyViewer url={guistudyScore.sourceUrl} height="70vh" />
+            <GuistudyViewer url={guistudyScore.sourceUrl} height="82vh" />
           ) : fileScore ? (
             fileScore.type === 'pdf' ? (
               <iframe
