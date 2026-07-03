@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { SongDetail } from '@shared'
+import type { SongDetail, ScoreAsset } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
 import { toast } from '../stores/toast'
@@ -253,23 +253,6 @@ export default function Practice(): React.ReactElement {
     }
   }, [])
 
-  // 分组浏览键盘快捷键：←/→ 翻页（仅在多成员组有效）
-  useEffect(() => {
-    if (!selectedScore?.groupId || group.length <= 1) return
-    const curIdx = group.findIndex((s) => s.id === selectedScore.id)
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        const prev = group[curIdx - 1]
-        if (prev) navigate(`/songs/${id}/practice/${prev.id}`)
-      } else if (e.key === 'ArrowRight') {
-        const next = group[curIdx + 1]
-        if (next) navigate(`/songs/${id}/practice/${next.id}`)
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [selectedScore, group, id, navigate])
-
   if (loading) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
 
@@ -331,10 +314,10 @@ export default function Practice(): React.ReactElement {
             {selectedScore && group.length > 1 && selectedScore.type !== 'link' && (
               <GroupPager songId={id} group={group} currentId={selectedScore.id} />
             )}
-            <div style={{ flex: 1, minHeight: 0 }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               {selectedScore ? (
                 selectedScore.source === 'guistudy' && selectedScore.sourceUrl ? (
-                  <GuistudyViewer url={selectedScore.sourceUrl} height="100%" />
+                  <GuistudyViewer url={selectedScore.sourceUrl} />
                 ) : selectedScore.type === 'pdf' ? (
                   <iframe
                     title={selectedScore.title ?? '曲谱'}
@@ -358,7 +341,21 @@ export default function Practice(): React.ReactElement {
                   </div>
                 ) : (
                   <Empty icon="🎼">
-                  <div>这首歌还没有可展示的曲谱。</div>
+                    <div>这首歌还没有可展示的曲谱。</div>
+                    <div className="row" style={{ marginTop: 12 }}>
+                      <button
+                        className="btn btn-primary"
+                        disabled={importAction.loading}
+                        onClick={handleImportScore}
+                      >
+                        {importAction.loading ? '导入中…' : '导入曲谱'}
+                      </button>
+                    </div>
+                  </Empty>
+                )
+              ) : (
+                <Empty icon="🎼">
+                  <div>这首歌还没有曲谱。</div>
                   <div className="row" style={{ marginTop: 12 }}>
                     <button
                       className="btn btn-primary"
@@ -369,198 +366,184 @@ export default function Practice(): React.ReactElement {
                     </button>
                   </div>
                 </Empty>
-              )
-            ) : (
-              <Empty icon="🎼">
-                <div>这首歌还没有曲谱。</div>
-                <div className="row" style={{ marginTop: 12 }}>
-                  <button
-                    className="btn btn-primary"
-                    disabled={importAction.loading}
-                    onClick={handleImportScore}
-                  >
-                    {importAction.loading ? '导入中…' : '导入曲谱'}
-                  </button>
-                </div>
-              </Empty>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
 
         {/* 右栏：控制面板 */}
         <div style={{ width: 340, flexShrink: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* 练习计时器 */}
           <Card title="练习计时器">
-          <div className="row-between" style={{ alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: 40, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                {formatClock(elapsed)}
-              </div>
-              <div className="faint" style={{ fontSize: 12, marginTop: 4 }}>
-                {phase === 'idle' && '点击"开始练习"开始计时'}
-                {phase === 'running' && '练习中…'}
-                {phase === 'paused' && '已暂停'}
-              </div>
-            </div>
-            <div className="row wrap" style={{ gap: 8 }}>
-              {phase === 'idle' && (
-                <button className="btn btn-primary" onClick={() => void handleStart()}>
-                  开始练习
-                </button>
-              )}
-              {phase === 'running' && (
-                <>
-                  <button className="btn" onClick={() => void handlePause()}>
-                    暂停
-                  </button>
-                  <button className="btn btn-danger" onClick={() => void handleStop()}>
-                    结束
-                  </button>
-                </>
-              )}
-              {phase === 'paused' && (
-                <>
-                  <button className="btn btn-primary" onClick={() => void handleResume()}>
-                    继续
-                  </button>
-                  <button className="btn btn-danger" onClick={() => void handleStop()}>
-                    结束
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        {/* 备注 */}
-        <Card
-          title="备注"
-          actions={
-            !editingNotes ? (
-              <button className="btn btn-sm btn-ghost" onClick={() => {
-                setNotesDraft(detail.notes ?? '')
-                setEditingNotes(true)
-              }}>
-                编辑备注
-              </button>
-            ) : undefined
-          }
-        >
-          {editingNotes ? (
-            <div>
-              <textarea
-                className="textarea"
-                style={{ minHeight: 120 }}
-                value={notesDraft}
-                onChange={(e) => setNotesDraft(e.target.value)}
-                autoFocus
-              />
-              <div className="row" style={{ gap: 8, marginTop: 8 }}>
-                <button
-                  className="btn btn-primary"
-                  disabled={saveAction.loading}
-                  onClick={() => void handleSaveNotes()}
-                >
-                  {saveAction.loading ? '保存中…' : '保存'}
-                </button>
-                <button
-                  className="btn"
-                  onClick={() => {
-                    setEditingNotes(false)
-                    setNotesDraft('')
-                  }}
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ whiteSpace: 'pre-wrap' }}>
-              {detail.notes ? (
-                detail.notes
-              ) : (
-                <span className="faint">还没有备注。</span>
-              )}
-            </div>
-          )}
-        </Card>
-
-        {/* 录音 */}
-        <Card title="录音">
-          {recording ? (
             <div className="row-between" style={{ alignItems: 'center' }}>
-              <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    background: 'var(--accent)',
-                    animation: 'pulse 1s infinite'
-                  }}
-                />
-                <span style={{ fontWeight: 600 }}>正在录音…</span>
-              </div>
-              <button className="btn btn-danger" onClick={handleStopRecording}>
-                停止
-              </button>
-            </div>
-          ) : detail.recording ? (
-            <div>
-              <audio
-                controls
-                src={`songcat-recording://${id}`}
-                style={{ width: '100%' }}
-              />
-              <div className="row-between" style={{ marginTop: 12 }}>
-                <span className="faint" style={{ fontSize: 12 }}>
-                  录于 {formatDateTime(detail.recording.recordedAt)}
-                  {detail.recording.durationSeconds ? ` · ${formatSeconds(detail.recording.durationSeconds)}` : ''}
-                </span>
-                <div className="row" style={{ gap: 8 }}>
-                  <button className="btn" onClick={() => void handleStartRecording()}>
-                    重新录音
-                  </button>
-                  <button className="btn btn-danger" onClick={() => setConfirmDeleteRecording(true)}>
-                    删除录音
-                  </button>
+              <div>
+                <div style={{ fontSize: 40, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                  {formatClock(elapsed)}
+                </div>
+                <div className="faint" style={{ fontSize: 12, marginTop: 4 }}>
+                  {phase === 'idle' && '点击"开始练习"开始计时'}
+                  {phase === 'running' && '练习中…'}
+                  {phase === 'paused' && '已暂停'}
                 </div>
               </div>
+              <div className="row wrap" style={{ gap: 8 }}>
+                {phase === 'idle' && (
+                  <button className="btn btn-primary" onClick={() => void handleStart()}>
+                    开始练习
+                  </button>
+                )}
+                {phase === 'running' && (
+                  <>
+                    <button className="btn" onClick={() => void handlePause()}>
+                      暂停
+                    </button>
+                    <button className="btn btn-danger" onClick={() => void handleStop()}>
+                      结束
+                    </button>
+                  </>
+                )}
+                {phase === 'paused' && (
+                  <>
+                    <button className="btn btn-primary" onClick={() => void handleResume()}>
+                      继续
+                    </button>
+                    <button className="btn btn-danger" onClick={() => void handleStop()}>
+                      结束
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="row">
-              <button className="btn btn-primary" onClick={() => void handleStartRecording()}>
-                开始录音
-              </button>
-            </div>
-          )}
-        </Card>
+          </Card>
 
-        {/* 最近练习记录 */}
-        <Card title="最近练习记录">
-          {detail.recentSessions.length > 0 ? (
-            detail.recentSessions.map((s) => (
-              <div key={s.id} className="list-row" style={{ gridTemplateColumns: '1fr auto' }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>
-                    {formatDateTime(s.startedAt)}
-                    {s.endedAt ? ` → ${formatDateTime(s.endedAt)}` : '（进行中）'}
-                  </div>
-                  <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>
-                    {s.stopReason ? `原因：${STOP_REASON_LABEL[s.stopReason]}` : ''}
-                  </div>
-                </div>
-                <div className="faint" style={{ fontSize: 12 }}>
-                  {formatSeconds(s.durationSeconds)}
+          {/* 备注 */}
+          <Card
+            title="备注"
+            actions={
+              !editingNotes ? (
+                <button className="btn btn-sm btn-ghost" onClick={() => {
+                  setNotesDraft(detail.notes ?? '')
+                  setEditingNotes(true)
+                }}>
+                  编辑备注
+                </button>
+              ) : undefined
+            }
+          >
+            {editingNotes ? (
+              <div>
+                <textarea
+                  className="textarea"
+                  style={{ minHeight: 120 }}
+                  value={notesDraft}
+                  onChange={(e) => setNotesDraft(e.target.value)}
+                  autoFocus
+                />
+                <div className="row" style={{ gap: 8, marginTop: 8 }}>
+                  <button
+                    className="btn btn-primary"
+                    disabled={saveAction.loading}
+                    onClick={() => void handleSaveNotes()}
+                  >
+                    {saveAction.loading ? '保存中…' : '保存'}
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      setEditingNotes(false)
+                      setNotesDraft('')
+                    }}
+                  >
+                    取消
+                  </button>
                 </div>
               </div>
-            ))
-          ) : (
-            <Empty icon="⏱">还没有练习记录。</Empty>
-          )}
-        </Card>
+            ) : (
+              <div style={{ whiteSpace: 'pre-wrap' }}>
+                {detail.notes ? (
+                  detail.notes
+                ) : (
+                  <span className="faint">还没有备注。</span>
+                )}
+              </div>
+            )}
+          </Card>
+
+          {/* 录音 */}
+          <Card title="录音">
+            {recording ? (
+              <div className="row-between" style={{ alignItems: 'center' }}>
+                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: 'var(--accent)',
+                      animation: 'pulse 1s infinite'
+                    }}
+                  />
+                  <span style={{ fontWeight: 600 }}>正在录音…</span>
+                </div>
+                <button className="btn btn-danger" onClick={handleStopRecording}>
+                  停止
+                </button>
+              </div>
+            ) : detail.recording ? (
+              <div>
+                <audio
+                  controls
+                  src={`songcat-recording://${id}`}
+                  style={{ width: '100%' }}
+                />
+                <div className="row-between" style={{ marginTop: 12 }}>
+                  <span className="faint" style={{ fontSize: 12 }}>
+                    录于 {formatDateTime(detail.recording.recordedAt)}
+                    {detail.recording.durationSeconds ? ` · ${formatSeconds(detail.recording.durationSeconds)}` : ''}
+                  </span>
+                  <div className="row" style={{ gap: 8 }}>
+                    <button className="btn" onClick={() => void handleStartRecording()}>
+                      重新录音
+                    </button>
+                    <button className="btn btn-danger" onClick={() => setConfirmDeleteRecording(true)}>
+                      删除录音
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="row">
+                <button className="btn btn-primary" onClick={() => void handleStartRecording()}>
+                  开始录音
+                </button>
+              </div>
+            )}
+          </Card>
+
+          {/* 最近练习记录 */}
+          <Card title="最近练习记录">
+            {detail.recentSessions.length > 0 ? (
+              detail.recentSessions.map((s) => (
+                <div key={s.id} className="list-row" style={{ gridTemplateColumns: '1fr auto' }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>
+                      {formatDateTime(s.startedAt)}
+                      {s.endedAt ? ` → ${formatDateTime(s.endedAt)}` : '（进行中）'}
+                    </div>
+                    <div className="faint" style={{ fontSize: 12, marginTop: 2 }}>
+                      {s.stopReason ? `原因：${STOP_REASON_LABEL[s.stopReason]}` : ''}
+                    </div>
+                  </div>
+                  <div className="faint" style={{ fontSize: 12 }}>
+                    {formatSeconds(s.durationSeconds)}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <Empty icon="⏱">还没有练习记录。</Empty>
+            )}
+          </Card>
         </div>
       </div>
 
