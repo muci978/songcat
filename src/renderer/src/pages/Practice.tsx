@@ -317,7 +317,7 @@ export default function Practice(): React.ReactElement {
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               {selectedScore ? (
                 selectedScore.source === 'guistudy' && selectedScore.sourceUrl ? (
-                  <GuistudyViewer url={selectedScore.sourceUrl} />
+                  <GuistudyViewer url={selectedScore.sourceUrl} height="100%" />
                 ) : selectedScore.type === 'pdf' ? (
                   <iframe
                     title={selectedScore.title ?? '曲谱'}

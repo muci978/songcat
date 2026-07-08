@@ -4,8 +4,12 @@
  * 从截图分析：webview 容器很大，但网页只渲染了顶部一小部分。
  * 可能原因：guistudy 是移动端网页，在桌面端 webview 中显示不正常。
  * 解决方案：设置移动端 useragent，让网页返回移动端版本。
+ *
+ * 全屏修复：Electron webview 内部使用 display:flex 确保 iframe 填满容器。
+ * 关键是让 webview 通过 CSS flex 布局自动填满父容器，而不是用 JS 手动设置像素值。
+ * 参考：https://www.electronjs.org/docs/latest/api/webview-tag#css-styling-notes
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /** 隐藏广告 + 强制内容填充 */
 const MINIMAL_HIDE_CSS = `
@@ -35,8 +39,6 @@ interface GuistudyViewerProps {
 
 export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.ReactElement {
   const [fs, setFs] = useState(false)
-  const [{ w, h }, setSize] = useState({ w: 800, h: 600 })
-  const wrapRef = useRef<HTMLDivElement>(null)
   const wvRef = useRef<HTMLElement & {
     insertCSS?: (css: string) => Promise<unknown>
     executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>
@@ -45,26 +47,6 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any
   }>(null)
-  const readyRef = useRef(false)
-  const pendingSizeRef = useRef<{ w: number; h: number } | null>(null)
-
-  /** 同步地把像素尺寸写给 webview */
-  const applyWebviewSize = (width: number, height: number) => {
-    const el = wvRef.current
-    if (!el || width <= 0 || height <= 0) return
-    pendingSizeRef.current = { w: width, h: height }
-    if (!readyRef.current) return
-
-    const s = el.style as unknown as Record<string, string>
-    s.width = `${width}px`
-    s.height = `${height}px`
-
-    try {
-      el.setAttribute('width', `${width}`)
-      el.setAttribute('height', `${height}`)
-      void el.offsetHeight
-    } catch { /* ignore */ }
-  }
 
   // webview ready 时注入 CSS 和设置 useragent
   useEffect(() => {
@@ -72,7 +54,6 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
     if (!wv) return
 
     const onReady = () => {
-      readyRef.current = true
       wv.insertCSS?.(MINIMAL_HIDE_CSS).catch(() => {})
 
       // 强制设置 viewport，确保内容正确缩放
@@ -92,24 +73,22 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
           document.body.style.height = 'auto';
           document.body.style.minHeight = '100vh';
           document.documentElement.style.height = 'auto';
+
+          // 强制所有直接子元素填充宽度
+          document.body.style.display = 'flex';
+          document.body.style.flexDirection = 'column';
+          document.body.style.alignItems = 'stretch';
         })();
       `).catch(() => {})
-
-      const pending = pendingSizeRef.current
-      if (pending) {
-        applyWebviewSize(pending.w, pending.h)
-      }
     }
 
     wv.addEventListener('dom-ready', onReady)
     wv.addEventListener('did-navigate-in-page', onReady)
 
     return () => {
-      readyRef.current = false
       wv.removeEventListener('dom-ready', onReady)
       wv.removeEventListener('did-navigate-in-page', onReady)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url])
 
   // 全屏 Esc 退出
@@ -121,61 +100,6 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [fs])
-
-  // 监听容器尺寸
-  useEffect(() => {
-    const el = wrapRef.current
-    if (!el) return undefined
-
-    let ro: ResizeObserver | null = null
-    let stableCount = 0
-    let lastRect = { width: 0, height: 0 }
-
-    const measure = () => {
-      const rect = el.getBoundingClientRect()
-      const newW = Math.max(320, Math.round(rect.width))
-      const newH = Math.max(240, Math.round(rect.height))
-
-      if (rect.width === lastRect.width && rect.height === lastRect.height) {
-        stableCount++
-      } else {
-        stableCount = 0
-        lastRect = { width: rect.width, height: rect.height }
-      }
-
-      if (stableCount >= 1) {
-        setSize({ w: newW, h: newH })
-      }
-    }
-
-    try {
-      ro = new ResizeObserver(measure)
-      ro.observe(el)
-    } catch {
-      window.addEventListener('resize', measure)
-    }
-
-    requestAnimationFrame(measure)
-    const timers = [
-      setTimeout(measure, 0),
-      setTimeout(measure, 50),
-      setTimeout(measure, 100),
-      setTimeout(measure, 250),
-      setTimeout(measure, 500),
-      setTimeout(measure, 1000),
-    ]
-
-    return () => {
-      timers.forEach(clearTimeout)
-      if (ro) ro.disconnect()
-      else window.removeEventListener('resize', measure)
-    }
-  }, [url])
-
-  // 尺寸变化时应用到 webview
-  useLayoutEffect(() => {
-    applyWebviewSize(w, h)
-  }, [w, h])
 
   const containerStyle = height
     ? { height: typeof height === 'number' ? `${height}px` : height, flex: 'none' as const }
@@ -198,7 +122,7 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        ...containerStyle,
+        ...(fs ? {} : containerStyle),
       }}
     >
       <button
@@ -209,8 +133,13 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
       >
         {fs ? '退出全屏 (Esc)' : '⤢ 全屏'}
       </button>
+      {/*
+        webview 容器：使用 flex:1 + minHeight:0 确保填满剩余空间。
+        Electron webview 内部使用 display:flex，子 iframe 会自动填满 webview 容器。
+        因此只需确保 webview 本身通过 CSS 填满其父容器即可，无需 JS 手动设置像素尺寸。
+        参考：https://www.electronjs.org/docs/latest/api/webview-tag#css-styling-notes
+      */}
       <div
-        ref={wrapRef}
         style={{
           flex: 1,
           minHeight: 0,
@@ -229,12 +158,12 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
           nodeintegration={false}
           nodeIntegration={false}
           useragent={MOBILE_USER_AGENT}
-          webpreferences="zoomFactor=1.0, defaultZoomLevel=0, contextIsolation=true, sandbox=true"
+          webpreferences="contextIsolation=true, sandbox=true"
           style={{
+            display: 'flex',
             width: '100%',
             height: '100%',
             border: 0,
-            display: 'block',
             background: '#fff',
           }}
         />
