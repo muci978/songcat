@@ -9,6 +9,7 @@ import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
 import { toast } from '../stores/toast'
 import { Card, ConfirmDialog, Empty, Spinner, Stars, StatusBadge, useAsyncAction } from '../components/ui'
 import { GuistudyViewer } from '../components/GuistudyViewer'
+import { ImageViewer } from '../components/ImageViewer'
 import { SortPreviewModal } from '../components/SortPreviewModal'
 
 /** 计时器状态机 */
@@ -344,10 +345,12 @@ export default function Practice(): React.ReactElement {
                     style={{ width: '100%', height: '100%', border: '0', borderRadius: 8 }}
                   />
                 ) : selectedScore.type === 'image' ? (
-                  <img
-                    src={assetUrl(selectedScore.id)}
+                  <ImageViewer
+                    assetId={selectedScore.id}
                     alt={selectedScore.title ?? '曲谱'}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    height="100%"
+                    group={group.length > 1 ? group : undefined}
+                    currentId={selectedScore.id}
                   />
                 ) : selectedScore.sourceUrl ? (
                   <div className="row">
