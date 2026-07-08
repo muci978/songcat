@@ -1,11 +1,12 @@
 /**
  * 图片曲谱查看器，支持全屏、翻页和缩放。
  *
- * 缩放交互：
- * - 鼠标滚轮：以光标位置为中心缩放
- * - 工具栏按钮：＋ / － / 重置
+ * 缩放交互（仅全屏时可用）：
+ * - 鼠标滚轮：以光标位置为中心缩放（低灵敏度）
+ * - 工具栏按钮：＋ / －，可输入百分比（如 103、115）
  * - 双击：在适应窗口和 100% 之间切换
  * - 拖拽平移：放大后可拖拽移动图片
+ * - 一键重置：恢复适应窗口
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -14,7 +15,10 @@ import { LOCAL_ASSET_PROTOCOL } from '@shared'
 
 const MIN_SCALE = 0.5
 const MAX_SCALE = 5
-const SCALE_STEP = 0.25
+/** 滚轮步进（低灵敏度） */
+const WHEEL_STEP = 0.05
+/** 按钮步进 */
+const BTN_STEP = 0.1
 
 interface ImageViewerProps {
   assetId: string
@@ -37,14 +41,17 @@ export function ImageViewer({
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [dragging, setDragging] = useState(false)
+  const [inputVal, setInputVal] = useState('100')
   const dragStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
 
   // 重置缩放和平移
   const resetView = useCallback(() => {
     setScale(1)
     setOffset({ x: 0, y: 0 })
+    setInputVal('100')
   }, [])
 
   // 切换曲谱时重置
@@ -61,6 +68,8 @@ export function ImageViewer({
   useEffect(() => {
     if (!fs) return
     const onKey = (e: KeyboardEvent) => {
+      // 输入框聚焦时不拦截 Esc
+      if (document.activeElement === inputRef.current) return
       if (e.key === 'Escape') setFs(false)
     }
     window.addEventListener('keydown', onKey)
@@ -77,23 +86,31 @@ export function ImageViewer({
     return () => { document.body.style.overflow = '' }
   }, [fs])
 
-  // 滚轮缩放（以鼠标位置为中心）
+  // 设置缩放并同步输入框
+  const applyScale = useCallback((next: number) => {
+    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, next))
+    setScale(clamped)
+    setInputVal(String(Math.round(clamped * 100)))
+    return clamped
+  }, [])
+
+  // 滚轮缩放（以鼠标位置为中心，仅全屏）
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (!fs) return
     e.preventDefault()
     const container = containerRef.current
     if (!container) return
 
     const rect = container.getBoundingClientRect()
-    // 鼠标相对于容器的位置
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
-    const delta = e.deltaY < 0 ? SCALE_STEP : -SCALE_STEP
+    const delta = e.deltaY < 0 ? WHEEL_STEP : -WHEEL_STEP
     setScale((prev) => {
-      const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta))
+      const next = applyScale(prev + delta)
       if (next === prev) return prev
 
-      // 以鼠标位置为中心缩放：调整偏移使鼠标下的点保持不动
+      // 以鼠标位置为中心缩放
       const ratio = next / prev
       setOffset((o) => ({
         x: mouseX - ratio * (mouseX - o.x),
@@ -101,22 +118,22 @@ export function ImageViewer({
       }))
       return next
     })
-  }, [])
+  }, [fs, applyScale])
 
-  // 双击切换：适应窗口(1x) ↔ 100%(2x)
+  // 双击切换：适应窗口(1x) ↔ 2x（仅全屏）
   const handleDoubleClick = useCallback(() => {
+    if (!fs) return
     if (scale === 1) {
-      setScale(2)
+      applyScale(2)
       setOffset({ x: 0, y: 0 })
     } else {
-      setScale(1)
-      setOffset({ x: 0, y: 0 })
+      resetView()
     }
-  }, [scale])
+  }, [fs, scale, applyScale, resetView])
 
-  // 拖拽平移
+  // 拖拽平移（仅全屏 + 放大时）
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (scale <= 1) return
+    if (!fs || scale <= 1) return
     e.preventDefault()
     setDragging(true)
     dragStartRef.current = {
@@ -125,7 +142,7 @@ export function ImageViewer({
       ox: offset.x,
       oy: offset.y
     }
-  }, [scale, offset])
+  }, [fs, scale, offset])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging) return
@@ -142,8 +159,38 @@ export function ImageViewer({
   }, [])
 
   // 缩放按钮
-  const zoomIn = () => setScale((s) => Math.min(MAX_SCALE, s + SCALE_STEP))
-  const zoomOut = () => setScale((s) => Math.max(MIN_SCALE, s - SCALE_STEP))
+  const zoomIn = () => applyScale(scale + BTN_STEP)
+  const zoomOut = () => applyScale(scale - BTN_STEP)
+
+  // 输入框处理
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setInputVal(val)
+    // 仅在输入纯数字时实时应用
+    const num = parseInt(val, 10)
+    if (!isNaN(num) && num >= Math.round(MIN_SCALE * 100) && num <= Math.round(MAX_SCALE * 100)) {
+      setScale(num / 100)
+      setOffset({ x: 0, y: 0 })
+    }
+  }
+
+  const handleInputBlur = () => {
+    const num = parseInt(inputVal, 10)
+    if (isNaN(num) || num < Math.round(MIN_SCALE * 100)) {
+      applyScale(MIN_SCALE)
+    } else if (num > Math.round(MAX_SCALE * 100)) {
+      applyScale(MAX_SCALE)
+    } else {
+      applyScale(num / 100)
+      setOffset((prev) => (prev.x !== 0 || prev.y !== 0) ? { x: 0, y: 0 } : prev)
+    }
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      inputRef.current?.blur()
+    }
+  }
 
   const containerStyle = height
     ? { height: typeof height === 'number' ? `${height}px` : height, flex: 'none' as const }
@@ -171,6 +218,7 @@ export function ImageViewer({
   useEffect(() => {
     if (!fs || !showPager) return
     const onKey = (e: KeyboardEvent) => {
+      if (document.activeElement === inputRef.current) return
       if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
     }
@@ -200,7 +248,7 @@ export function ImageViewer({
         ...(fs ? {} : containerStyle),
       }}
     >
-      {/* 工具栏 */}
+      {/* 工具栏：全屏时显示缩放控件 */}
       <div
         style={{
           position: 'absolute',
@@ -213,27 +261,39 @@ export function ImageViewer({
           opacity: 0.9,
         }}
       >
-        <button className="btn btn-sm" onClick={zoomOut} disabled={scale <= MIN_SCALE}>
-          －
-        </button>
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: 'var(--text-muted)',
-            minWidth: 44,
-            textAlign: 'center',
-          }}
-        >
-          {Math.round(scale * 100)}%
-        </span>
-        <button className="btn btn-sm" onClick={zoomIn} disabled={scale >= MAX_SCALE}>
-          ＋
-        </button>
-        {isZoomed && (
-          <button className="btn btn-sm" onClick={resetView}>
-            重置
-          </button>
+        {fs && (
+          <>
+            <button className="btn btn-sm" onClick={zoomOut} disabled={scale <= MIN_SCALE}>
+              －
+            </button>
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputVal}
+              onChange={handleInputChange}
+              onBlur={handleInputBlur}
+              onKeyDown={handleInputKeyDown}
+              style={{
+                width: 52,
+                padding: '2px 4px',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 4,
+                background: 'var(--bg-elevated)',
+                color: 'var(--text)',
+                fontSize: 12,
+                fontWeight: 600,
+                textAlign: 'center',
+                outline: 'none',
+              }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 2 }}>%</span>
+            <button className="btn btn-sm" onClick={zoomIn} disabled={scale >= MAX_SCALE}>
+              ＋
+            </button>
+            <button className="btn btn-sm" onClick={resetView} title="重置为适应窗口">
+              ↺
+            </button>
+          </>
         )}
         <button className="btn btn-sm" onClick={() => setFs((v) => !v)}>
           {fs ? '退出全屏' : '⤢ 全屏'}
@@ -253,7 +313,7 @@ export function ImageViewer({
           flex: 1,
           minHeight: 0,
           overflow: 'hidden',
-          cursor: isZoomed ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
+          cursor: fs && isZoomed ? (dragging ? 'grabbing' : 'grab') : (fs ? 'zoom-in' : 'default'),
           position: 'relative',
         }}
       >
