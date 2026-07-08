@@ -113,5 +113,17 @@ export const assetsRepository = {
   delete(id: string): boolean {
     const r = getDb().prepare('DELETE FROM score_assets WHERE id = ?').run(id)
     return r.changes > 0
+  },
+
+  /** 批量更新同组曲谱的排列顺序 */
+  reorderGroup(groupId: string, orderedIds: string[]): void {
+    const db = getDb()
+    const stmt = db.prepare('UPDATE score_assets SET group_sort = ? WHERE id = ? AND group_id = ?')
+    const tx = db.transaction(() => {
+      for (let i = 0; i < orderedIds.length; i++) {
+        stmt.run(i, orderedIds[i], groupId)
+      }
+    })
+    tx()
   }
 }

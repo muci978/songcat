@@ -86,12 +86,15 @@ export const IPC = {
   assets: {
     list: 'assets:list',
     importFileDialog: 'assets:importFileDialog',
+    selectFiles: 'assets:selectFiles',
     importFilePath: 'assets:importFilePath',
     addScoreLink: 'assets:addScoreLink',
     update: 'assets:update',
     remove: 'assets:remove',
     setPrimary: 'assets:setPrimary',
-    openLocalFolder: 'assets:openLocalFolder'
+    openLocalFolder: 'assets:openLocalFolder',
+    reorderGroup: 'assets:reorderGroup',
+    getThumbnails: 'assets:getThumbnails'
   },
   sources: {
     list: 'sources:list',
@@ -303,12 +306,18 @@ export interface AssetsApi {
   list(songId: string): Promise<IpcResult<ScoreAsset[]>>
   /** 弹出原生文件选择对话框，导入 PDF/图片（可多选） */
   importFileDialog(songId: string): Promise<IpcResult<ScoreAsset[]>>
+  /** 弹出原生文件选择对话框，仅返回路径列表（不执行导入，用于排序预览后再导入） */
+  selectFiles(): Promise<IpcResult<string[]>>
   /** main 端直接按路径导入（用于已下载到本地的文件） */
   importFilePath(input: ImportFilePathInput): Promise<IpcResult<ScoreAsset>>
   addScoreLink(songId: string, input: AddScoreLinkInput): Promise<IpcResult<ScoreAsset>>
   setPrimary(assetId: string): Promise<IpcResult<void>>
   remove(assetId: string): Promise<IpcResult<{ removed: boolean }>>
   openLocalFolder(assetId: string): Promise<IpcResult<void>>
+  /** 调整同组曲谱的排列顺序 */
+  reorderGroup(groupId: string, orderedIds: string[]): Promise<IpcResult<void>>
+  /** 获取文件路径对应的缩略图 data URL（路径→dataURL 映射，非图片返回空串） */
+  getThumbnails(filePaths: string[]): Promise<IpcResult<Record<string, string>>>
 }
 
 export interface SourcesApi {

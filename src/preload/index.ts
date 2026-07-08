@@ -19,11 +19,14 @@ const api: SongCatApi = {
   assets: {
     list: (songId) => ipcRenderer.invoke(IPC.assets.list, songId),
     importFileDialog: (songId) => ipcRenderer.invoke(IPC.assets.importFileDialog, songId),
+    selectFiles: () => ipcRenderer.invoke(IPC.assets.selectFiles),
     importFilePath: (input) => ipcRenderer.invoke(IPC.assets.importFilePath, input),
     addScoreLink: (songId, input) => ipcRenderer.invoke(IPC.assets.addScoreLink, songId, input),
     setPrimary: (assetId) => ipcRenderer.invoke(IPC.assets.setPrimary, assetId),
     remove: (assetId) => ipcRenderer.invoke(IPC.assets.remove, assetId),
-    openLocalFolder: (assetId) => ipcRenderer.invoke(IPC.assets.openLocalFolder, assetId)
+    openLocalFolder: (assetId) => ipcRenderer.invoke(IPC.assets.openLocalFolder, assetId),
+    reorderGroup: (groupId, orderedIds) => ipcRenderer.invoke(IPC.assets.reorderGroup, groupId, orderedIds),
+    getThumbnails: (filePaths) => ipcRenderer.invoke(IPC.assets.getThumbnails, filePaths)
   },
   sources: {
     list: () => ipcRenderer.invoke(IPC.sources.list),

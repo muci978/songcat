@@ -5,7 +5,7 @@
  * - is_primary：首个资源自动设为主；删除主资源后由用户重设。
  */
 import { basename } from 'node:path'
-import { dialog, shell } from 'electron'
+import { dialog, nativeImage, shell } from 'electron'
 import { assetsRepository, sourceLinksRepository } from '../db/repositories'
 import { classifyScoreFile, extensionFor, hashFile, hostOf, isHttpUrl } from '../utils'
 import { copyFileInto, safeUnlink, uniqueFilename } from '../lib/filestore'
@@ -47,6 +47,55 @@ export async function importFileDialog(songId: string): Promise<ScoreAsset[]> {
     }
   }
   return assets
+}
+
+/** 弹出文件选择对话框，仅返回路径列表（不执行导入），用于排序预览后再导入 */
+export async function selectScoreFiles(): Promise<string[]> {
+  const result = await dialog.showOpenDialog({
+    title: '选择曲谱文件（PDF / 图片，可多选）',
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: '曲谱与图片', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }
+    ]
+  })
+  if (result.canceled || !result.filePaths.length) return []
+  return result.filePaths
+}
+
+/** 调整同组曲谱的排列顺序 */
+export function reorderGroup(groupId: string, orderedIds: string[]): void {
+  assetsRepository.reorderGroup(groupId, orderedIds)
+}
+
+/** 获取文件路径对应的缩略图 data URL 映射 */
+export function getThumbnails(filePaths: string[]): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const fp of filePaths) {
+    const lower = fp.toLowerCase()
+    // PDF 无法用 nativeImage 生成缩略图，跳过
+    if (lower.endsWith('.pdf')) {
+      result[fp] = ''
+      continue
+    }
+    try {
+      const image = nativeImage.createFromPath(fp)
+      if (image.isEmpty()) {
+        result[fp] = ''
+        continue
+      }
+      const size = image.getSize()
+      const maxSide = 128
+      const scale = Math.min(maxSide / size.width, maxSide / size.height, 1)
+      const resized = image.resize({
+        width: Math.max(1, Math.round(size.width * scale)),
+        height: Math.max(1, Math.round(size.height * scale))
+      })
+      result[fp] = resized.toDataURL()
+    } catch {
+      result[fp] = ''
+    }
+  }
+  return result
 }
 
 export async function importFilePath(input: ImportFilePathInput): Promise<ScoreAsset> {

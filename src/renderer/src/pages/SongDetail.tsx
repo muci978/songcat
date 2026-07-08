@@ -21,6 +21,8 @@ import {
   StatusBadge,
   useAsyncAction
 } from '../components/ui'
+import { SortPreviewModal } from '../components/SortPreviewModal'
+import { GroupSortModal } from '../components/GroupSortModal'
 
 const STOP_REASON_LABEL: Record<string, string> = {
   manual: '手动结束',
@@ -421,6 +423,7 @@ function AssetRow({
 }): React.ReactElement {
   const setPrimaryAction = useAsyncAction()
   const openFolderAction = useAsyncAction()
+  const [sortOpen, setSortOpen] = useState(false)
 
   const group = asset.groupId ? allAssets.filter((a) => a.groupId === asset.groupId).sort((a, b) => a.groupSort - b.groupSort) : [asset]
   const groupIndex = group.findIndex((a) => a.id === asset.id)
@@ -492,10 +495,27 @@ function AssetRow({
             打开位置
           </button>
         )}
+        {group.length > 1 && asset.groupId && (
+          <button className="btn btn-sm" onClick={() => setSortOpen(true)}>
+            排序
+          </button>
+        )}
         <button className="btn btn-danger btn-sm" onClick={() => onRemove(asset.id)}>
           删除
         </button>
       </div>
+      {sortOpen && asset.groupId && (
+        <GroupSortModal
+          open={sortOpen}
+          groupId={asset.groupId}
+          assets={group}
+          onClose={() => setSortOpen(false)}
+          onSorted={() => {
+            setSortOpen(false)
+            void onChanged()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -509,22 +529,51 @@ function ImportButton({
   onDone: () => void
 }): React.ReactElement {
   const action = useAsyncAction()
-  return (
-    <button
-      className="btn btn-sm btn-primary"
-      disabled={action.loading}
-      onClick={() =>
-        action.run(async () => {
-          const assets = await unwrap(api.assets.importFileDialog(songId))
-          if (assets.length > 0) {
-            toast.success(`已导入 ${assets.length} 个曲谱`)
-            onDone()
-          }
-        })
+  const [sortOpen, setSortOpen] = useState(false)
+  const [pendingPaths, setPendingPaths] = useState<string[]>([])
+
+  const handleClick = () =>
+    action.run(async () => {
+      const paths = await unwrap(api.assets.selectFiles())
+      if (paths.length === 0) return
+      if (paths.length === 1) {
+        // 单文件直接导入，无需排序
+        await unwrap(
+          api.assets.importFilePath({
+            songId,
+            filePath: paths[0]!,
+            sourcePolicy: 'user-imported'
+          })
+        )
+        toast.success('已导入 1 个曲谱')
+        onDone()
+      } else {
+        // 多文件弹出排序 Modal
+        setPendingPaths(paths)
+        setSortOpen(true)
       }
-    >
-      {action.loading ? '导入中…' : '导入文件'}
-    </button>
+    })
+
+  return (
+    <>
+      <button
+        className="btn btn-sm btn-primary"
+        disabled={action.loading}
+        onClick={handleClick}
+      >
+        {action.loading ? '选择中…' : '导入文件'}
+      </button>
+      <SortPreviewModal
+        open={sortOpen}
+        filePaths={pendingPaths}
+        songId={songId}
+        onClose={() => setSortOpen(false)}
+        onImported={() => {
+          setSortOpen(false)
+          onDone()
+        }}
+      />
+    </>
   )
 }
 

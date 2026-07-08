@@ -3,12 +3,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { SongDetail, ScoreAsset } from '@shared'
+import type { SongDetail, ScoreAsset, ImportFilePathInput } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
 import { toast } from '../stores/toast'
 import { Card, ConfirmDialog, Empty, Spinner, Stars, StatusBadge, useAsyncAction } from '../components/ui'
 import { GuistudyViewer } from '../components/GuistudyViewer'
+import { SortPreviewModal } from '../components/SortPreviewModal'
 
 /** 计时器状态机 */
 type TimerPhase = 'idle' | 'running' | 'paused'
@@ -166,11 +167,29 @@ export default function Practice(): React.ReactElement {
       await reload()
     }, '备注已保存')
 
+  // ---- 导入曲谱（多文件排序流程） ----
+  const [sortOpen, setSortOpen] = useState(false)
+  const [pendingPaths, setPendingPaths] = useState<string[]>([])
+
   const handleImportScore = (): Promise<void> =>
     importAction.run(async () => {
-      const assets = await unwrap(api.assets.importFileDialog(id))
-      if (assets.length > 0) {
+      const paths = await unwrap(api.assets.selectFiles())
+      if (paths.length === 0) return
+      if (paths.length === 1) {
+        // 单文件直接导入
+        await unwrap(
+          api.assets.importFilePath({
+            songId: id,
+            filePath: paths[0]!,
+            sourcePolicy: 'user-imported'
+          })
+        )
+        toast.success('已导入 1 个曲谱')
         await reload()
+      } else {
+        // 多文件弹出排序 Modal
+        setPendingPaths(paths)
+        setSortOpen(true)
       }
     })
 
@@ -555,6 +574,17 @@ export default function Practice(): React.ReactElement {
         danger
         onConfirm={() => void handleDeleteRecording()}
         onClose={() => setConfirmDeleteRecording(false)}
+      />
+
+      <SortPreviewModal
+        open={sortOpen}
+        filePaths={pendingPaths}
+        songId={id}
+        onClose={() => setSortOpen(false)}
+        onImported={() => {
+          setSortOpen(false)
+          void reload()
+        }}
       />
     </div>
   )

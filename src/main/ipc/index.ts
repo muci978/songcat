@@ -71,6 +71,15 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.assets.openLocalFolder, (_e, assetId) =>
     handle(() => assetService.openLocalFolder(assetId))
   )
+  ipcMain.handle(IPC.assets.selectFiles, () =>
+    handle(() => assetService.selectScoreFiles())
+  )
+  ipcMain.handle(IPC.assets.reorderGroup, (_e, groupId, orderedIds) =>
+    handle(() => assetService.reorderGroup(groupId, orderedIds))
+  )
+  ipcMain.handle(IPC.assets.getThumbnails, (_e, filePaths) =>
+    handle(() => assetService.getThumbnails(filePaths))
+  )
 
   /* ---------------- sources ---------------- */
   ipcMain.handle(IPC.sources.list, () => handle(() => sourcesService.listSources()))
