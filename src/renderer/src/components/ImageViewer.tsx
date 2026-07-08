@@ -1,14 +1,20 @@
 /**
- * 图片曲谱查看器，支持全屏和翻页。
+ * 图片曲谱查看器，支持全屏、翻页和缩放。
  *
- * 复用 GuistudyViewer 的全屏模式模式：
- * CSS fixed + 100vw/100vh + Esc 退出。
- * 全屏模式下底部显示翻页控件。
+ * 缩放交互：
+ * - 鼠标滚轮：以光标位置为中心缩放
+ * - 工具栏按钮：＋ / － / 重置
+ * - 双击：在适应窗口和 100% 之间切换
+ * - 拖拽平移：放大后可拖拽移动图片
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ScoreAsset } from '@shared'
 import { LOCAL_ASSET_PROTOCOL } from '@shared'
+
+const MIN_SCALE = 0.5
+const MAX_SCALE = 5
+const SCALE_STEP = 0.25
 
 interface ImageViewerProps {
   assetId: string
@@ -28,7 +34,28 @@ export function ImageViewer({
   currentId
 }: ImageViewerProps): React.ReactElement {
   const [fs, setFs] = useState(false)
+  const [scale, setScale] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
+  const dragStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
+  const containerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+
+  // 重置缩放和平移
+  const resetView = useCallback(() => {
+    setScale(1)
+    setOffset({ x: 0, y: 0 })
+  }, [])
+
+  // 切换曲谱时重置
+  useEffect(() => {
+    resetView()
+  }, [assetId, resetView])
+
+  // 退出全屏时重置
+  useEffect(() => {
+    if (!fs) resetView()
+  }, [fs, resetView])
 
   // 全屏 Esc 退出
   useEffect(() => {
@@ -49,6 +76,74 @@ export function ImageViewer({
     }
     return () => { document.body.style.overflow = '' }
   }, [fs])
+
+  // 滚轮缩放（以鼠标位置为中心）
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    // 鼠标相对于容器的位置
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+
+    const delta = e.deltaY < 0 ? SCALE_STEP : -SCALE_STEP
+    setScale((prev) => {
+      const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta))
+      if (next === prev) return prev
+
+      // 以鼠标位置为中心缩放：调整偏移使鼠标下的点保持不动
+      const ratio = next / prev
+      setOffset((o) => ({
+        x: mouseX - ratio * (mouseX - o.x),
+        y: mouseY - ratio * (mouseY - o.y)
+      }))
+      return next
+    })
+  }, [])
+
+  // 双击切换：适应窗口(1x) ↔ 100%(2x)
+  const handleDoubleClick = useCallback(() => {
+    if (scale === 1) {
+      setScale(2)
+      setOffset({ x: 0, y: 0 })
+    } else {
+      setScale(1)
+      setOffset({ x: 0, y: 0 })
+    }
+  }, [scale])
+
+  // 拖拽平移
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (scale <= 1) return
+    e.preventDefault()
+    setDragging(true)
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      ox: offset.x,
+      oy: offset.y
+    }
+  }, [scale, offset])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragging) return
+    const dx = e.clientX - dragStartRef.current.x
+    const dy = e.clientY - dragStartRef.current.y
+    setOffset({
+      x: dragStartRef.current.ox + dx,
+      y: dragStartRef.current.oy + dy
+    })
+  }, [dragging])
+
+  const handleMouseUp = useCallback(() => {
+    setDragging(false)
+  }, [])
+
+  // 缩放按钮
+  const zoomIn = () => setScale((s) => Math.min(MAX_SCALE, s + SCALE_STEP))
+  const zoomOut = () => setScale((s) => Math.max(MIN_SCALE, s - SCALE_STEP))
 
   const containerStyle = height
     ? { height: typeof height === 'number' ? `${height}px` : height, flex: 'none' as const }
@@ -84,6 +179,8 @@ export function ImageViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fs, showPager, curIdx, group, songId])
 
+  const isZoomed = scale > 1
+
   return (
     <div
       style={{
@@ -103,25 +200,82 @@ export function ImageViewer({
         ...(fs ? {} : containerStyle),
       }}
     >
-      <button
-        type="button"
-        className="btn btn-sm"
-        onClick={() => setFs((v) => !v)}
-        style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, opacity: 0.9 }}
+      {/* 工具栏 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          zIndex: 10,
+          display: 'flex',
+          gap: 4,
+          alignItems: 'center',
+          opacity: 0.9,
+        }}
       >
-        {fs ? '退出全屏 (Esc)' : '⤢ 全屏'}
-      </button>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button className="btn btn-sm" onClick={zoomOut} disabled={scale <= MIN_SCALE}>
+          －
+        </button>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'var(--text-muted)',
+            minWidth: 44,
+            textAlign: 'center',
+          }}
+        >
+          {Math.round(scale * 100)}%
+        </span>
+        <button className="btn btn-sm" onClick={zoomIn} disabled={scale >= MAX_SCALE}>
+          ＋
+        </button>
+        {isZoomed && (
+          <button className="btn btn-sm" onClick={resetView}>
+            重置
+          </button>
+        )}
+        <button className="btn btn-sm" onClick={() => setFs((v) => !v)}>
+          {fs ? '退出全屏' : '⤢ 全屏'}
+        </button>
+      </div>
+
+      {/* 图片容器 */}
+      <div
+        ref={containerRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onDoubleClick={handleDoubleClick}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
+          cursor: isZoomed ? (dragging ? 'grabbing' : 'grab') : 'zoom-in',
+          position: 'relative',
+        }}
+      >
         <img
           src={src}
           alt={alt ?? '曲谱'}
+          draggable={false}
           style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+            transformOrigin: '0 0',
+            maxWidth: scale === 1 ? '100%' : 'none',
+            maxHeight: scale === 1 ? '100%' : 'none',
             objectFit: 'contain',
+            transition: dragging ? 'none' : 'transform 0.15s ease',
+            userSelect: 'none',
           }}
         />
       </div>
+
       {/* 全屏翻页控件 */}
       {showPager && (
         <div
