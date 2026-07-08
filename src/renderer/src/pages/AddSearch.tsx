@@ -12,6 +12,7 @@ import { api, unwrap } from '../lib/api'
 import { toast } from '../stores/toast'
 import { Card, Empty, Modal, Spinner, useAsyncAction } from '../components/ui'
 import { GuistudyViewer } from '../components/GuistudyViewer'
+import { SortPreviewModal } from '../components/SortPreviewModal'
 
 type TabKey = 'manual' | 'sources' | 'ai' | 'link'
 
@@ -109,46 +110,85 @@ function SongSelect({
 /* ------------------------------------------------------------------ */
 
 function ManualTab(): React.ReactElement {
-  const { songs, loading } = useSongList()
-  const [songId, setSongId] = useState('')
-  const [url, setUrl] = useState('')
   const [title, setTitle] = useState('')
+  const [artist, setArtist] = useState('')
+  const [url, setUrl] = useState('')
+  const [linkTitle, setLinkTitle] = useState('')
   const [sourceName, setSourceName] = useState('')
   const importAction = useAsyncAction()
   const linkAction = useAsyncAction()
+  const [sortOpen, setSortOpen] = useState(false)
+  const [pendingPaths, setPendingPaths] = useState<string[]>([])
+  const [pendingSongId, setPendingSongId] = useState('')
 
-  const importFile = () =>
+  const handleImportFile = () =>
     importAction.run(async () => {
-      if (!songId) throw new Error('请先选择歌曲')
-      const assets = await unwrap(api.assets.importFileDialog(songId))
-      if (assets.length > 0) toast.success(`已导入 ${assets.length} 个曲谱`)
+      const t = title.trim()
+      if (!t) throw new Error('请输入歌名')
+      // 先创建/查找歌曲
+      const song = await unwrap(api.library.findOrCreate(t, artist.trim() || undefined))
+      setPendingSongId(song.id)
+
+      // 弹出文件选择
+      const paths = await unwrap(api.assets.selectFiles())
+      if (paths.length === 0) return
+      if (paths.length === 1) {
+        // 单文件直接导入
+        await unwrap(
+          api.assets.importFilePath({
+            songId: song.id,
+            filePath: paths[0]!,
+            sourcePolicy: 'user-imported'
+          })
+        )
+        toast.success('已导入 1 个曲谱')
+      } else {
+        // 多文件弹出排序 Modal
+        setPendingPaths(paths)
+        setSortOpen(true)
+      }
     })
 
   const saveLink = () =>
     linkAction.run(async () => {
-      if (!songId) throw new Error('请先选择歌曲')
+      const t = title.trim()
+      if (!t) throw new Error('请输入歌名')
       const u = url.trim()
       if (!u) throw new Error('请输入链接')
+      const song = await unwrap(api.library.findOrCreate(t, artist.trim() || undefined))
       await unwrap(
-        api.assets.addScoreLink(songId, {
+        api.assets.addScoreLink(song.id, {
           url: u,
-          title: title.trim() || null,
+          title: linkTitle.trim() || null,
           sourceName: sourceName.trim() || null
         })
       )
       toast.success('已保存链接')
       setUrl('')
-      setTitle('')
+      setLinkTitle('')
       setSourceName('')
     })
 
-  if (loading) return <Spinner />
-
   return (
-    <Card title="选择目标歌曲">
+    <Card title="导入曲谱到新歌曲">
       <div className="field">
-        <label className="label">歌曲</label>
-        <SongSelect songs={songs} value={songId} onChange={setSongId} />
+        <label className="label">歌名 *</label>
+        <input
+          className="input"
+          placeholder="输入歌名"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          autoFocus
+        />
+      </div>
+      <div className="field">
+        <label className="label">艺人</label>
+        <input
+          className="input"
+          placeholder="可选"
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+        />
       </div>
 
       <div className="field">
@@ -156,12 +196,12 @@ function ManualTab(): React.ReactElement {
         <div className="row" style={{ gap: 8 }}>
           <button
             className="btn btn-primary"
-            disabled={importAction.loading || !songId}
-            onClick={importFile}
+            disabled={importAction.loading || !title.trim()}
+            onClick={handleImportFile}
           >
-            {importAction.loading ? '导入中…' : '导入 PDF / 图片文件'}
+            {importAction.loading ? '选择中…' : '导入 PDF / 图片文件'}
           </button>
-          <span className="hint">支持 PDF 与常见图片格式，导入后保存到歌曲目录。</span>
+          <span className="hint">支持 PDF 与常见图片格式，可多选。自动创建歌曲记录。</span>
         </div>
       </div>
 
@@ -179,8 +219,8 @@ function ManualTab(): React.ReactElement {
           <input
             className="input grow"
             placeholder="链接标题（可选）"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            value={linkTitle}
+            onChange={(e) => setLinkTitle(e.target.value)}
           />
           <input
             className="input grow"
@@ -190,13 +230,21 @@ function ManualTab(): React.ReactElement {
           />
           <button
             className="btn btn-primary"
-            disabled={linkAction.loading || !songId || !url.trim()}
+            disabled={linkAction.loading || !title.trim() || !url.trim()}
             onClick={saveLink}
           >
             {linkAction.loading ? '保存中…' : '保存链接'}
           </button>
         </div>
       </div>
+
+      <SortPreviewModal
+        open={sortOpen}
+        filePaths={pendingPaths}
+        songId={pendingSongId}
+        onClose={() => setSortOpen(false)}
+        onImported={() => setSortOpen(false)}
+      />
     </Card>
   )
 }
