@@ -1,4 +1,4 @@
-/** 应用外壳：侧边栏一级导航 + 内容区 + toast 容器（设计 §13.1） */
+/** 应用外壳：侧边栏一级导航 + 内容区 + toast 容器（毛玻璃风格 v3） */
 import type React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useToast } from '../stores/toast'
@@ -16,7 +16,8 @@ export function AppLayout({ children }: { children: React.ReactNode }): React.Re
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span className="dot">🐱</span> SongCat
+          <img src="/logo.png" alt="SongCat" style={{ width: 32, height: 32, marginRight: 8 }} />
+          <span>SongCat</span>
         </div>
         {NAV.map((n) => (
           <NavLink

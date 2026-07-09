@@ -22,10 +22,23 @@ import { Card, Empty, Spinner } from '../components/ui'
 const PIE_COLORS = ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4']
 const BAR_COLOR = '#f97316'
 
+/* 统计卡片鲜艳配色 */
+const STAT_COLORS = [
+  { bg: '#f97316', gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' },
+  { bg: '#22c55e', gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' },
+  { bg: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' },
+  { bg: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+  { bg: '#a855f7', gradient: 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)' },
+  { bg: '#ec4899', gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)' },
+  { bg: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' },
+  { bg: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
+]
+
 export default function Dashboard(): React.ReactElement {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [trendPeriod, setTrendPeriod] = useState<'day' | 'month' | 'year'>('day')
 
   useEffect(() => {
     void (async () => {
@@ -49,7 +62,17 @@ export default function Dashboard(): React.ReactElement {
     name: truncate(s.title, 8),
     seconds: Math.round(s.seconds / 60)
   }))
-  const artistData = stats.byArtist.slice(0, 6).map((a) => ({
+  const todayArtistData = stats.todayBySong.reduce((acc, s) => {
+    const artist = s.artist ?? '未知'
+    const existing = acc.find((a) => a.name === artist)
+    if (existing) {
+      existing.value += s.seconds
+    } else {
+      acc.push({ name: artist, value: s.seconds })
+    }
+    return acc
+  }, [] as { name: string; value: number }[]).sort((a, b) => b.value - a.value).slice(0, 6)
+  const allArtistData = stats.byArtist.slice(0, 6).map((a) => ({
     name: truncate(a.artist ?? '未知', 10),
     value: a.seconds
   }))
@@ -60,20 +83,42 @@ export default function Dashboard(): React.ReactElement {
         <h1>Dashboard</h1>
       </div>
 
-      {/* 统计卡片 —— 更大的圆角和悬浮效果 */}
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: 28 }}>
-        <StatCard label="总歌曲" value={stats.totalSongs} />
-        <StatCard label="想学" value={stats.toLearnCount} />
-        <StatCard label="学习中" value={stats.learningCount} />
-        <StatCard label="已学会" value={stats.learnedCount} />
-        <StatCard label="收藏" value={stats.favoriteCount} />
-        <StatCard label="今日练习" value={minutesLabel(stats.todayPracticeSeconds)} />
-        <StatCard label="本月练习" value={minutesLabel(stats.monthPracticeSeconds)} />
-        <StatCard label="今年练习" value={minutesLabel(stats.yearPracticeSeconds)} />
+      {/* 统计卡片 —— 横向彩色长条卡片 */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 28, overflowX: 'auto' }}>
+        <StatCard label="总歌曲" value={stats.totalSongs} colorIndex={0} />
+        <StatCard label="想学" value={stats.toLearnCount} colorIndex={1} />
+        <StatCard label="学习中" value={stats.learningCount} colorIndex={2} />
+        <StatCard label="已学会" value={stats.learnedCount} colorIndex={3} />
+        <StatCard label="收藏" value={stats.favoriteCount} colorIndex={4} />
+        <StatCard label="今日练习" value={minutesLabel(stats.todayPracticeSeconds)} colorIndex={5} />
+        <StatCard label="本月练习" value={minutesLabel(stats.monthPracticeSeconds)} colorIndex={6} />
+        <StatCard label="今年练习" value={minutesLabel(stats.yearPracticeSeconds)} colorIndex={7} />
       </div>
 
       {/* 趋势图 */}
-      <Card title="练习时间趋势（近 30 天 · 分钟）" className="grid">
+      <Card title="练习时间趋势" className="grid" actions={
+        <div style={{ display: 'flex', gap: 8 }}>
+          {(['day', 'month', 'year'] as const).map((p) => (
+            <button
+              key={p}
+              onClick={() => setTrendPeriod(p)}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 8,
+                border: 'none',
+                background: trendPeriod === p ? '#38bdf8' : '#e0f2fe',
+                color: trendPeriod === p ? '#ffffff' : '#0369a1',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              {p === 'day' ? '日' : p === 'month' ? '月' : '年'}
+            </button>
+          ))}
+        </div>
+      }>
         <div style={{ height: 260 }}>
           {trendData.some((d) => d.minutes > 0) ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -109,9 +154,9 @@ export default function Dashboard(): React.ReactElement {
       </Card>
 
       {/* 饼图区域 */}
-      <div className="grid grid-auto" style={{ marginTop: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginTop: 28 }}>
         <Card title="今日各歌曲练习占比">
-          <div style={{ height: 260 }}>
+          <div style={{ height: 300 }}>
             {todaySongData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -119,14 +164,14 @@ export default function Dashboard(): React.ReactElement {
                     data={todaySongData}
                     dataKey="seconds"
                     nameKey="name"
-                    outerRadius={90}
-                    innerRadius={50}
-                    label={false}
-                    stroke="rgba(15,15,26,0.3)"
+                    outerRadius={100}
+                    innerRadius={60}
+                    paddingAngle={2}
+                    stroke="#ffffff"
                     strokeWidth={2}
                   >
                     {todaySongData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.75} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -148,22 +193,61 @@ export default function Dashboard(): React.ReactElement {
           </div>
         </Card>
 
-        <Card title="艺人练习占比（全部）">
-          <div style={{ height: 260 }}>
-            {artistData.length > 0 ? (
+        <Card title="今日艺人练习占比">
+          <div style={{ height: 300 }}>
+            {todayArtistData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={artistData}
+                    data={todayArtistData}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={90}
-                    innerRadius={50}
-                    stroke="rgba(15,15,26,0.3)"
+                    outerRadius={100}
+                    innerRadius={60}
+                    paddingAngle={2}
+                    stroke="#ffffff"
                     strokeWidth={2}
                   >
-                    {artistData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    {todayArtistData.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.75} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v) => formatSeconds(Number(v))}
+                    contentStyle={{
+                      background: '#ffffff',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      color: '#1f2937',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <Empty>今日还没有练习数据</Empty>
+            )}
+          </div>
+        </Card>
+
+        <Card title="全部艺人练习占比">
+          <div style={{ height: 300 }}>
+            {allArtistData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={allArtistData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={100}
+                    innerRadius={60}
+                    paddingAngle={2}
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                  >
+                    {allArtistData.map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.75} />
                     ))}
                   </Pie>
                   <Tooltip
@@ -215,11 +299,37 @@ export default function Dashboard(): React.ReactElement {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }): React.ReactElement {
+function StatCard({ label, value, colorIndex }: { label: string; value: string | number; colorIndex: number }): React.ReactElement {
+  const color = STAT_COLORS[colorIndex % STAT_COLORS.length]
   return (
-    <div className="card" style={{ textAlign: 'center', transition: 'all 0.3s ease' }}>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
+    <div
+      style={{
+        flex: '1 1 0',
+        minWidth: 120,
+        background: color.gradient,
+        borderRadius: 12,
+        padding: '16px 12px',
+        color: '#ffffff',
+        textAlign: 'center',
+        transition: 'all 0.3s ease',
+        cursor: 'default',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-4px)'
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+      }}
+    >
+      <div style={{ fontSize: 28, fontWeight: 700, marginBottom: 4, letterSpacing: '-0.02em' }}>
+        {value}
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </div>
     </div>
   )
 }
