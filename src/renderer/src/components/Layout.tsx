@@ -2,6 +2,7 @@
 import type React from 'react'
 import { NavLink } from 'react-router-dom'
 import { useToast } from '../stores/toast'
+import logo from '../../public/logo.png'
 
 const NAV: { to: string; label: string; icon: string; end?: boolean }[] = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
@@ -16,7 +17,7 @@ export function AppLayout({ children }: { children: React.ReactNode }): React.Re
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img src="/logo.png" alt="SongCat" style={{ width: 32, height: 32, marginRight: 8 }} />
+          <img src={logo} alt="SongCat" style={{ width: 32, height: 32, marginRight: 8 }} />
           <span>SongCat</span>
         </div>
         {NAV.map((n) => (

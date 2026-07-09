@@ -18,9 +18,21 @@ import { api, unwrap } from '../lib/api'
 import { formatDate, formatSeconds, minutesLabel, truncate } from '../lib/format'
 import { Card, Empty, Spinner } from '../components/ui'
 
-/* 明亮暖色系配色方案 */
-const PIE_COLORS = ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4']
-const BAR_COLOR = '#f97316'
+/* 浅色+半透明配色方案 */
+const PIE_COLORS = [
+  'rgba(249, 115, 22, 0.6)',   // 橙色
+  'rgba(34, 197, 94, 0.6)',    // 绿色
+  'rgba(59, 130, 246, 0.6)',   // 蓝色
+  'rgba(245, 158, 11, 0.6)',   // 琥珀色
+  'rgba(168, 85, 247, 0.6)',   // 紫色
+  'rgba(236, 72, 153, 0.6)',   // 粉色
+  'rgba(6, 182, 212, 0.6)',    // 青色
+]
+const PIE_COLORS_SOLID = [
+  '#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'
+]
+const BAR_COLOR = '#38bdf8'
+const BAR_COLOR_HOVER = '#0ea5e9'
 
 /* 统计卡片鲜艳配色 */
 const STAT_COLORS = [
@@ -144,7 +156,18 @@ export default function Dashboard(): React.ReactElement {
                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                   }}
                 />
-                <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
+                <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]}>
+                  <Tooltip
+                    contentStyle={{
+                      background: '#ffffff',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      color: '#1f2937',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                    }}
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -164,14 +187,19 @@ export default function Dashboard(): React.ReactElement {
                     data={todaySongData}
                     dataKey="seconds"
                     nameKey="name"
-                    outerRadius={100}
-                    innerRadius={60}
+                    outerRadius={(data, index) => 80 + (index % 3) * 15}
+                    innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
                   >
-                    {todaySongData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.75} />
+                    {todaySongData.map((entry, i) => (
+                      <Cell
+                        key={i}
+                        fill={PIE_COLORS[i % PIE_COLORS.length]}
+                        stroke={PIE_COLORS_SOLID[i % PIE_COLORS_SOLID.length]}
+                        strokeWidth={2}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
@@ -202,14 +230,19 @@ export default function Dashboard(): React.ReactElement {
                     data={todayArtistData}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={100}
-                    innerRadius={60}
+                    outerRadius={(data, index) => 80 + (index % 3) * 15}
+                    innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
                   >
-                    {todayArtistData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.75} />
+                    {todayArtistData.map((entry, i) => (
+                      <Cell
+                        key={i}
+                        fill={PIE_COLORS[i % PIE_COLORS.length]}
+                        stroke={PIE_COLORS_SOLID[i % PIE_COLORS_SOLID.length]}
+                        strokeWidth={2}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
@@ -240,14 +273,19 @@ export default function Dashboard(): React.ReactElement {
                     data={allArtistData}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={100}
-                    innerRadius={60}
+                    outerRadius={(data, index) => 80 + (index % 3) * 15}
+                    innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
                   >
-                    {allArtistData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} fillOpacity={0.75} />
+                    {allArtistData.map((entry, i) => (
+                      <Cell
+                        key={i}
+                        fill={PIE_COLORS[i % PIE_COLORS.length]}
+                        stroke={PIE_COLORS_SOLID[i % PIE_COLORS_SOLID.length]}
+                        strokeWidth={2}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
