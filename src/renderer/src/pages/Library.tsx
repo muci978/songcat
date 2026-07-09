@@ -197,18 +197,18 @@ export default function Library(): React.ReactElement {
         </div>
       </div>
 
-      <Card style={{ marginBottom: 16 }}>
-        <div className="row wrap" style={{ gap: 12 }}>
+      <Card style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
+        <div className="row wrap" style={{ gap: 14 }}>
           <input
             className="input grow"
-            style={{ minWidth: 200 }}
+            style={{ minWidth: 220, borderRadius: 'var(--radius-sm)' }}
             placeholder="搜索歌名、艺人、备注或拼音首字母…"
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
           <select
             className="select"
-            style={{ width: 'auto' }}
+            style={{ width: 'auto', borderRadius: 'var(--radius-sm)' }}
             value={status}
             onChange={(e) => setStatus(e.target.value as SongStatus | '')}
           >
@@ -220,7 +220,7 @@ export default function Library(): React.ReactElement {
           </select>
           <select
             className="select"
-            style={{ width: 'auto' }}
+            style={{ width: 'auto', borderRadius: 'var(--radius-sm)' }}
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortBy)}
           >
@@ -262,7 +262,7 @@ export default function Library(): React.ReactElement {
         {multiSelect && (
           <div
             className="row wrap"
-            style={{ gap: 12, marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}
+            style={{ gap: 14, marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 16 }}
           >
             <span className="faint" style={{ fontSize: 12 }}>
               已选 {selected.size} / {sorted.length}
@@ -376,8 +376,8 @@ function AlphabetIndex({
   const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   const present = new Set(letters)
   return (
-    <Card style={{ padding: 8, marginBottom: 12 }}>
-      <div className="row wrap" style={{ gap: 2 }}>
+    <Card style={{ padding: 10, marginBottom: 16, borderRadius: 'var(--radius)' }}>
+      <div className="row wrap" style={{ gap: 4 }}>
         {[...all].map((ch) => (
           <button
             key={ch}
@@ -387,10 +387,14 @@ function AlphabetIndex({
             disabled={!present.has(ch)}
             onClick={() => onPick(ch)}
             style={{
-              minWidth: 28,
-              padding: '2px 0',
+              minWidth: 32,
+              padding: '4px 0',
+              borderRadius: 'var(--radius-sm)',
               opacity: present.has(ch) ? 1 : 0.35,
-              cursor: present.has(ch) ? 'pointer' : 'default'
+              cursor: present.has(ch) ? 'pointer' : 'default',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
           >
             {ch}
@@ -402,10 +406,14 @@ function AlphabetIndex({
           disabled={!present.has('#')}
           onClick={() => onPick('#')}
           style={{
-            minWidth: 32,
-            padding: '2px 0',
+            minWidth: 36,
+            padding: '4px 0',
+            borderRadius: 'var(--radius-sm)',
             opacity: present.has('#') ? 1 : 0.35,
-            cursor: present.has('#') ? 'pointer' : 'default'
+            cursor: present.has('#') ? 'pointer' : 'default',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
         >
           #
