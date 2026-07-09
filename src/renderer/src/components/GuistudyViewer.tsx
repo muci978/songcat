@@ -9,23 +9,13 @@
  * 关键是让 webview 通过 CSS flex 布局自动填满父容器，而不是用 JS 手动设置像素值。
  * 参考：https://www.electronjs.org/docs/latest/api/webview-tag#css-styling-notes
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, memo } from 'react'
 
-/** 隐藏广告 + 强制内容填充 */
+/** 隐藏广告 */
 const MINIMAL_HIDE_CSS = `
   [class*="popup-ad"], [class*="ad-banner"], [class*="app-download"],
   .adsbygoogle, iframe[src*="ad"] {
     display: none !important;
-  }
-  /* 强制 guistudy 内容填充 */
-  html, body {
-    width: 100% !important;
-    height: auto !important;
-    min-height: 100% !important;
-    overflow-y: auto !important;
-  }
-  body > * {
-    max-width: 100% !important;
   }
 `
 
@@ -37,7 +27,7 @@ interface GuistudyViewerProps {
   height?: string | number
 }
 
-export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.ReactElement {
+export const GuistudyViewer = memo(function GuistudyViewer({ url, height }: GuistudyViewerProps): React.ReactElement {
   const [fs, setFs] = useState(false)
   const wvRef = useRef<HTMLElement & {
     insertCSS?: (css: string) => Promise<unknown>
@@ -48,6 +38,18 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
     [key: string]: any
   }>(null)
 
+  // 用 ref 控制 webview src，避免 React 重新渲染时重设 src 导致 webview 重新加载
+  const prevUrlRef = useRef(url)
+  useEffect(() => {
+    if (url !== prevUrlRef.current) {
+      prevUrlRef.current = url
+      const wv = wvRef.current
+      if (wv) {
+        wv.src = url
+      }
+    }
+  }, [url])
+
   // webview ready 时注入 CSS 和设置 useragent
   useEffect(() => {
     const wv = wvRef.current
@@ -56,7 +58,7 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
     const onReady = () => {
       wv.insertCSS?.(MINIMAL_HIDE_CSS).catch(() => {})
 
-      // 强制设置 viewport，确保内容正确缩放
+      // 设置 viewport，确保移动端内容正确缩放
       wv.executeJavaScript?.(`
         (function() {
           // 移除现有的 viewport meta 标签
@@ -68,16 +70,6 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
           meta.name = 'viewport';
           meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';
           document.head.appendChild(meta);
-
-          // 强制 body 高度自适应
-          document.body.style.height = 'auto';
-          document.body.style.minHeight = '100vh';
-          document.documentElement.style.height = 'auto';
-
-          // 强制所有直接子元素填充宽度
-          document.body.style.display = 'flex';
-          document.body.style.flexDirection = 'column';
-          document.body.style.alignItems = 'stretch';
         })();
       `).catch(() => {})
     }
@@ -151,7 +143,7 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
         {/* @ts-expect-error Electron custom element */}
         <webview
           ref={wvRef as never}
-          src={url}
+          src={prevUrlRef.current}
           partition="persist:guistudy"
           allowpopups={false}
           disablewebsecurity={false}
@@ -170,4 +162,4 @@ export function GuistudyViewer({ url, height }: GuistudyViewerProps): React.Reac
       </div>
     </div>
   )
-}
+})

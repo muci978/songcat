@@ -45,7 +45,8 @@ export default function Practice(): React.ReactElement {
   const importAction = useAsyncAction()
 
   const reload = useCallback(async () => {
-    setLoading(true)
+    // 仅首次加载（detail 为 null）时显示 spinner，后续刷新静默更新，避免卸载曲谱查看器
+    if (!detail) setLoading(true)
     try {
       setDetail(await unwrap(api.library.getSong(id)))
     } catch (e) {
@@ -53,7 +54,7 @@ export default function Practice(): React.ReactElement {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, detail])
 
   // 初次加载 + touch last_opened
   useEffect(() => {
@@ -273,7 +274,7 @@ export default function Practice(): React.ReactElement {
     }
   }, [])
 
-  if (loading) return <Spinner />
+  if (loading && !detail) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
 
   // 选择要展示的曲谱：URL assetId 优先；无则按主资源 → guistudy → 本地文件 → 外部链接兜底
