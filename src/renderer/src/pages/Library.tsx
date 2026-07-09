@@ -1,10 +1,10 @@
-/** Library 页面（设计 §13.2）：搜索、多维筛选、排序、字母索引、批量删除、列表/卡片视图 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+/** Library 页面：搜索、多维筛选、排序、首字母分组视图、卡片视图、批量删除 */
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { SongStatus, SongSummary } from '@shared'
 import type { SongSearchQuery } from '@shared'
 import { api, unwrap } from '../lib/api'
-import { formatDate, formatSeconds, truncate } from '../lib/format'
+import { formatSeconds, truncate } from '../lib/format'
 import { toast } from '../stores/toast'
 import { Card, ConfirmDialog, Empty, Spinner, Stars, StatusBadge } from '../components/ui'
 
@@ -47,7 +47,7 @@ export default function Library(): React.ReactElement {
   const [hasPdf, setHasPdf] = useState(false)
   const [hasRecording, setHasRecording] = useState(false)
   const [hasPractice, setHasPractice] = useState(false)
-  const [view, setView] = useState<'list' | 'grid'>('list')
+  const [view, setView] = useState<'alpha' | 'grid'>('alpha')
   const [sortBy, setSortBy] = useState<SortBy>('title')
   const [letterFilter, setLetterFilter] = useState<string | null>(null)
 
@@ -89,10 +89,11 @@ export default function Library(): React.ReactElement {
     setSelected(new Set())
   }, [sortBy, multiSelect])
 
-  // 前端排序（先按字母筛选，再排序）
+  // 前端排序（首字母视图强制按标题排序以确保分组正确）
   const sorted = useMemo(() => {
     const arr = letterFilter ? songs.filter((s) => groupInitial(s) === letterFilter) : [...songs]
-    switch (sortBy) {
+    const effectiveSort = view === 'alpha' ? 'title' : sortBy
+    switch (effectiveSort) {
       case 'title':
         arr.sort((a, b) => {
           const g = cmpStr(groupInitial(a), groupInitial(b))
@@ -118,7 +119,7 @@ export default function Library(): React.ReactElement {
         break
     }
     return arr
-  }, [songs, sortBy, letterFilter])
+  }, [songs, sortBy, view, letterFilter])
 
   // 标题排序时的字母分组（保持顺序）
   const groups = useMemo(() => {
@@ -137,7 +138,7 @@ export default function Library(): React.ReactElement {
     })
   }, [sorted])
 
-  // 可用字母基于全量歌曲（不受当前筛选影响，否则筛选后字母条会缩水）
+  // 可用字母基于全量歌曲（不受当前筛选影响）
   const availableLetters = useMemo(() => {
     const s = new Set(songs.map(groupInitial))
     return [...s].sort((a, b) => (a === '#' ? 1 : b === '#' ? -1 : cmpStr(a, b)))
@@ -244,10 +245,10 @@ export default function Library(): React.ReactElement {
           <div className="grow" />
           <div className="row">
             <button
-              className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setView('list')}
+              className={`btn btn-sm ${view === 'alpha' ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => setView('alpha')}
             >
-              列表
+              A-Z
             </button>
             <button
               className={`btn btn-sm ${view === 'grid' ? 'btn-primary' : 'btn-ghost'}`}
@@ -292,7 +293,7 @@ export default function Library(): React.ReactElement {
         <Spinner />
       ) : songs.length === 0 ? (
         <Empty>曲库为空，或没有匹配的歌曲。去"添加/搜索"页搜索入库吧。</Empty>
-      ) : sortBy === 'title' && view === 'list' ? (
+      ) : view === 'alpha' ? (
         <AlphabetIndex
           letters={availableLetters}
           activeLetter={letterFilter}
@@ -302,9 +303,9 @@ export default function Library(): React.ReactElement {
 
       {!loading && songs.length > 0 && (
         <>
-          {view === 'list' ? (
-            <ListView
-              groups={sortBy === 'title' ? groups : [['__all__', sorted]]}
+          {view === 'alpha' ? (
+            <AlphaView
+              groups={groups}
               multiSelect={multiSelect}
               selected={selected}
               onToggle={toggleSelect}
@@ -361,7 +362,7 @@ export default function Library(): React.ReactElement {
   )
 }
 
-/* --------------------------- 字母索引条 --------------------------- */
+/* --------------------------- 字母筛选条 --------------------------- */
 
 function AlphabetIndex({
   letters,
@@ -414,9 +415,9 @@ function AlphabetIndex({
   )
 }
 
-/* --------------------------- 列表视图 --------------------------- */
+/* --------------------------- 首字母分组视图（多列紧凑） --------------------------- */
 
-function ListView({
+function AlphaView({
   groups,
   multiSelect,
   selected,
@@ -429,35 +430,20 @@ function ListView({
   onToggle: (id: string) => void
   onDelete: (s: SongSummary) => void
 }): React.ReactElement {
-  const showGroupHeader = groups.length > 1
   return (
-    <>
-      {groups.map(([key, list]) => (
-        <div key={key} style={{ marginBottom: 16 }}>
-          {showGroupHeader && (
-            <div
-              id={`group-${key}`}
-              className="card-title"
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                padding: '6px 12px',
-                borderBottom: '1px solid var(--border)',
-                marginBottom: 4,
-                scrollMarginTop: 12
-              }}
-            >
-              {key}
-              <span className="faint" style={{ fontSize: 12, marginLeft: 8, fontWeight: 400 }}>
-                ({list.length})
-              </span>
-            </div>
-          )}
+    <div style={{ columns: 3, columnGap: 12 }}>
+      {groups.map(([letter, list]) => (
+        <div
+          key={letter}
+          style={{ breakInside: 'avoid', marginBottom: 4 }}
+        >
           <Card style={{ padding: 0 }}>
-            {list.map((s) => (
-              <SongListRow
+            {list.map((s, i) => (
+              <AlphaSongRow
                 key={s.id}
                 s={s}
+                showLetter={i === 0}
+                letter={letter}
                 multiSelect={multiSelect}
                 checked={selected.has(s.id)}
                 onToggle={onToggle}
@@ -467,24 +453,27 @@ function ListView({
           </Card>
         </div>
       ))}
-    </>
+    </div>
   )
 }
 
-function SongListRow({
+function AlphaSongRow({
   s,
+  showLetter,
+  letter,
   multiSelect,
   checked,
   onToggle,
   onDelete
 }: {
   s: SongSummary
+  showLetter: boolean
+  letter: string
   multiSelect: boolean
   checked: boolean
   onToggle: (id: string) => void
   onDelete: (s: SongSummary) => void
 }): React.ReactElement {
-  const deleteRef = useRef<HTMLButtonElement>(null)
   const stopAndDelete = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -496,8 +485,17 @@ function SongListRow({
       onClick={(e) => {
         if (multiSelect) e.preventDefault()
       }}
-      className="list-row"
-      style={{ gridTemplateColumns: multiSelect ? 'auto 1fr auto auto auto auto' : '1fr auto auto auto auto' }}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: multiSelect ? 'auto 28px 1fr auto auto' : '28px 1fr auto auto',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 10px',
+        textDecoration: 'none',
+        color: 'inherit',
+        borderBottom: '1px solid var(--border)',
+        fontSize: 13,
+      }}
     >
       {multiSelect && (
         <input
@@ -508,30 +506,30 @@ function SongListRow({
           style={{ cursor: 'pointer' }}
         />
       )}
-      <div>
-        <div className="row" style={{ gap: 8 }}>
-          <span style={{ fontWeight: 600 }}>{s.title}</span>
-          {s.isFavorite && <span className="badge badge-fav">★</span>}
-        </div>
-        <div className="faint" style={{ fontSize: 12 }}>
-          {s.artist ?? '未知艺人'}
-        </div>
+      <span
+        style={{
+          fontWeight: 800,
+          fontSize: 14,
+          color: showLetter ? 'var(--accent)' : 'transparent',
+          userSelect: 'none',
+          textAlign: 'center',
+        }}
+      >
+        {letter}
+      </span>
+      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontWeight: 600 }}>{s.title}</span>
+        <span className="faint" style={{ marginLeft: 8 }}>{s.artist ?? '未知艺人'}</span>
       </div>
       <StatusBadge status={s.status} />
-      <Stars value={s.difficulty} readonly />
-      <div className="faint row" style={{ fontSize: 12, gap: 10 }}>
+      <div className="faint row" style={{ fontSize: 11, gap: 6, alignItems: 'center' }}>
         {s.scoreCount > 0 && <span>谱{s.scoreCount}</span>}
         {s.hasRecording && <span>🎙</span>}
-        {s.totalPracticeSeconds > 0 && <span>{formatSeconds(s.totalPracticeSeconds)}</span>}
-      </div>
-      <div className="faint row" style={{ fontSize: 12, gap: 10, alignItems: 'center' }}>
-        <span>{formatDate(s.dateAdded)}</span>
         <button
-          ref={deleteRef}
           className="btn btn-sm btn-ghost"
           onClick={stopAndDelete}
           title="删除"
-          style={{ padding: '0 6px', color: 'var(--danger, var(--text-muted))' }}
+          style={{ padding: '0 4px', color: 'var(--danger, var(--text-muted))' }}
         >
           ✕
         </button>
