@@ -141,33 +141,21 @@ export default function Dashboard(): React.ReactElement {
         </div>
       }>
         <div style={{ height: 260 }}>
-          {(() => {
-            const currentTrendData = trendPeriod === 'day' ? trendDataDay : trendPeriod === 'month' ? trendDataMonth : trendDataYear
-            return currentTrendData.some((d) => d.minutes > 0) ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={trendPeriod === 'day' ? trendDataDay : trendPeriod === 'month' ? trendDataMonth : trendDataYear}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11, fill: '#9ca3af' }}
-                  axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#9ca3af' }}
-                  allowDecimals={false}
-                  axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    background: '#ffffff',
-                    border: '1px solid rgba(0,0,0,0.08)',
-                    borderRadius: 12,
-                    fontSize: 13,
-                    color: '#1f2937',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                  }}
-                />
-                <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]}>
+          {trendPeriod === 'day' ? (
+            trendDataDay.some((d) => d.minutes > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trendDataDay}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    allowDecimals={false}
+                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                  />
                   <Tooltip
                     contentStyle={{
                       background: '#ffffff',
@@ -178,11 +166,74 @@ export default function Dashboard(): React.ReactElement {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                     }}
                   />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Empty>近 30 天还没有练习记录</Empty>
+            )
+          ) : trendPeriod === 'month' ? (
+            trendDataMonth.some((d) => d.minutes > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trendDataMonth}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    allowDecimals={false}
+                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#ffffff',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      color: '#1f2937',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                    }}
+                  />
+                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Empty>近 12 个月还没有练习记录</Empty>
+            )
           ) : (
-            <Empty>近 30 天还没有练习记录</Empty>
+            trendDataYear.some((d) => d.minutes > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trendDataYear}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    allowDecimals={false}
+                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#ffffff',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      color: '#1f2937',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                    }}
+                  />
+                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <Empty>还没有年度练习记录</Empty>
+            )
           )}
         </div>
       </Card>
