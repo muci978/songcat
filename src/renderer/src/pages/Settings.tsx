@@ -119,13 +119,13 @@ function LibrarySettingsCard({
   const health = useAsyncAction()
 
   return (
-    <Card title="曲库设置" style={{ marginBottom: 16 }}>
+    <Card title="曲库设置" style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
       <div className="field">
         <label className="label">曲库位置</label>
         <input className="input" value={settings.libraryPath} readOnly />
         <div className="hint">第一版不支持修改曲库位置。</div>
       </div>
-      <div className="row wrap" style={{ gap: 8, marginBottom: 16 }}>
+      <div className="row wrap" style={{ gap: 10, marginBottom: 20 }}>
         <button
           className="btn"
           disabled={openFolder.loading}
@@ -202,7 +202,7 @@ function SourcesCard({
   return (
     <Card
       title="免费资源站"
-      style={{ marginBottom: 16 }}
+      style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}
       actions={
         <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
           ＋ 新增来源
@@ -300,7 +300,7 @@ function Toggle({ on, disabled, onClick }: { on: boolean; disabled?: boolean; on
           width: 14,
           height: 14,
           borderRadius: '50%',
-          background: '#fff',
+          background: 'var(--bg-elevated)',
           transform: on ? 'translateX(8px)' : 'translateX(-7px)',
           transition: 'transform 0.15s'
         }}
@@ -593,7 +593,7 @@ function DeepSeekCard({
         )}
       </div>
 
-      <div className="row wrap" style={{ gap: 8, marginBottom: 16 }}>
+      <div className="row wrap" style={{ gap: 10, marginBottom: 20 }}>
         <button className="btn" disabled={!settings.deepSeekKeyConfigured || testAction.loading} onClick={doTest}>
           {testAction.loading ? '测试中…' : '测试连接'}
         </button>
@@ -786,7 +786,7 @@ function HealthReportModal({
         <div className="empty">无报告</div>
       ) : (
         <>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', marginBottom: 16 }}>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', marginBottom: 20 }}>
             <ReportStat label="缺失曲谱文件" value={report.missingScoreFiles.length} danger />
             <ReportStat label="缺失录音" value={report.missingRecordings.length} danger />
             <ReportStat label="未完成下载" value={report.unfinishedDownloads.length} warn />

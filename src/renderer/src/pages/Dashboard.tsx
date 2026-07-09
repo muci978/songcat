@@ -1,4 +1,4 @@
-/** Dashboard 页面（设计 §12）：统计卡片 + 趋势 + 占比图 + 最近练习 */
+/** Dashboard 页面（设计 §12）：统计卡片 + 趋势 + 占比图 + 最近练习 —— 明亮毛玻璃风格 */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -18,7 +18,9 @@ import { api, unwrap } from '../lib/api'
 import { formatDate, formatSeconds, minutesLabel, truncate } from '../lib/format'
 import { Card, Empty, Spinner } from '../components/ui'
 
-const PIE_COLORS = ['#c2410c', '#0f766e', '#b45309', '#9a6a3e', '#707c3a', '#a8412f', '#2f6f74']
+/* 明亮暖色系配色方案 */
+const PIE_COLORS = ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4']
+const BAR_COLOR = '#f97316'
 
 export default function Dashboard(): React.ReactElement {
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -58,7 +60,8 @@ export default function Dashboard(): React.ReactElement {
         <h1>Dashboard</h1>
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: 20 }}>
+      {/* 统计卡片 —— 更大的圆角和悬浮效果 */}
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: 28 }}>
         <StatCard label="总歌曲" value={stats.totalSongs} />
         <StatCard label="想学" value={stats.toLearnCount} />
         <StatCard label="学习中" value={stats.learningCount} />
@@ -69,23 +72,34 @@ export default function Dashboard(): React.ReactElement {
         <StatCard label="今年练习" value={minutesLabel(stats.yearPracticeSeconds)} />
       </div>
 
+      {/* 趋势图 */}
       <Card title="练习时间趋势（近 30 天 · 分钟）" className="grid">
-        <div style={{ height: 220 }}>
+        <div style={{ height: 260 }}>
           {trendData.some((d) => d.minutes > 0) ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  allowDecimals={false}
+                  axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                />
                 <Tooltip
                   contentStyle={{
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    fontSize: 12
+                    background: '#ffffff',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    borderRadius: 12,
+                    fontSize: 13,
+                    color: '#1f2937',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                   }}
                 />
-                <Bar dataKey="minutes" fill="var(--accent)" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -94,20 +108,37 @@ export default function Dashboard(): React.ReactElement {
         </div>
       </Card>
 
-      <div className="grid grid-auto" style={{ marginTop: 20 }}>
+      {/* 饼图区域 */}
+      <div className="grid grid-auto" style={{ marginTop: 28 }}>
         <Card title="今日各歌曲练习占比">
-          <div style={{ height: 220 }}>
+          <div style={{ height: 260 }}>
             {todaySongData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={todaySongData} dataKey="seconds" nameKey="name" outerRadius={80} label={false}>
+                  <Pie
+                    data={todaySongData}
+                    dataKey="seconds"
+                    nameKey="name"
+                    outerRadius={90}
+                    innerRadius={50}
+                    label={false}
+                    stroke="rgba(15,15,26,0.3)"
+                    strokeWidth={2}
+                  >
                     {todaySongData.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(v) => `${Math.round(Number(v))} 分钟`}
-                    contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: 12 }}
+                    contentStyle={{
+                      background: '#ffffff',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      color: '#1f2937',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -118,18 +149,33 @@ export default function Dashboard(): React.ReactElement {
         </Card>
 
         <Card title="艺人练习占比（全部）">
-          <div style={{ height: 220 }}>
+          <div style={{ height: 260 }}>
             {artistData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={artistData} dataKey="value" nameKey="name" outerRadius={80}>
+                  <Pie
+                    data={artistData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={90}
+                    innerRadius={50}
+                    stroke="rgba(15,15,26,0.3)"
+                    strokeWidth={2}
+                  >
                     {artistData.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(v) => formatSeconds(Number(v))}
-                    contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: 12 }}
+                    contentStyle={{
+                      background: '#ffffff',
+                      border: '1px solid rgba(0,0,0,0.08)',
+                      borderRadius: 12,
+                      fontSize: 13,
+                      color: '#1f2937',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -140,7 +186,8 @@ export default function Dashboard(): React.ReactElement {
         </Card>
       </div>
 
-      <Card title="最近练习" className="grid" style={{ marginTop: 20 }}>
+      {/* 最近练习 */}
+      <Card title="最近练习" className="grid" style={{ marginTop: 28 }}>
         {stats.recentPractice.length > 0 ? (
           stats.recentPractice.map((r) => (
             <Link
@@ -170,7 +217,7 @@ export default function Dashboard(): React.ReactElement {
 
 function StatCard({ label, value }: { label: string; value: string | number }): React.ReactElement {
   return (
-    <div className="card">
+    <div className="card" style={{ textAlign: 'center', transition: 'all 0.3s ease' }}>
       <div className="stat-value">{value}</div>
       <div className="stat-label">{label}</div>
     </div>
