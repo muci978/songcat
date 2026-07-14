@@ -33,19 +33,6 @@ const PIE_COLORS_SOLID = [
 ]
 const BAR_COLOR = '#38bdf8'
 
-/* 饼图扇区半径 - 固定值确保明显差异 */
-
-/** 计算玫瑰图每个扇区的外半径：按数据值映射到 [MIN_R, MAX_R] 区间 */
-function roseOuterRadius(value: number, maxVal: number): number {
-  const MIN_R = 45
-  const MAX_R = 130
-  if (maxVal <= 0) return MIN_R
-  const ratio = value / maxVal
-  // 用平方根拉伸差距，让小值更小、大值更大
-  const stretched = Math.sqrt(ratio)
-  return MIN_R + (MAX_R - MIN_R) * stretched
-}
-
 /* 统计卡片鲜艳配色 */
 const STAT_COLORS = [
   { bg: '#f97316', gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' },
@@ -258,8 +245,8 @@ export default function Dashboard(): React.ReactElement {
                     data={todaySongData}
                     dataKey="seconds"
                     nameKey="name"
-                    outerRadius={(data: { seconds?: number }) => roseOuterRadius(data.seconds ?? 0, Math.max(...todaySongData.map((d) => d.seconds)))}
-                    innerRadius={30}
+                    outerRadius={120}
+                    innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
@@ -301,8 +288,8 @@ export default function Dashboard(): React.ReactElement {
                     data={todayArtistData}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={(data: { value?: number }) => roseOuterRadius(data.value ?? 0, Math.max(...todayArtistData.map((d) => d.value)))}
-                    innerRadius={30}
+                    outerRadius={120}
+                    innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
@@ -344,8 +331,8 @@ export default function Dashboard(): React.ReactElement {
                     data={allArtistData}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={(data: { value?: number }) => roseOuterRadius(data.value ?? 0, Math.max(...allArtistData.map((d) => d.value)))}
-                    innerRadius={30}
+                    outerRadius={120}
+                    innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
