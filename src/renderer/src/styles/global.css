@@ -421,6 +421,13 @@ h3 {
 }
 .grid-auto {
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  max-grid-template-columns: 4;
+}
+/* 限制卡片视图最多4列 */
+@media (min-width: 1200px) {
+  .grid-auto {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 /* ===================== modal ===================== */

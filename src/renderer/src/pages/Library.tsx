@@ -438,8 +438,11 @@ function AlphaView({
   onToggle: (id: string) => void
   onDelete: (s: SongSummary) => void
 }): React.ReactElement {
+  // 根据屏幕宽度动态列数：窄屏1列，逐渐到最多4列
+  const colCount = window.innerWidth < 640 ? 1 : window.innerWidth < 900 ? 2 : window.innerWidth < 1200 ? 3 : 4
+
   return (
-    <div style={{ columns: 3, columnGap: 12 }}>
+    <div style={{ columns: colCount, columnGap: 12 }}>
       {groups.map(([letter, list]) => (
         <div
           key={letter}
