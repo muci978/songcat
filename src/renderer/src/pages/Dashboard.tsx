@@ -34,8 +34,8 @@ const PIE_COLORS_SOLID = [
 const BAR_COLOR = '#38bdf8'
 const BAR_COLOR_HOVER = '#0ea5e9'
 
-/* 饼图扇区半径 - 固定随机值避免闪烁 */
-const PIE_RADIUSES = [65, 85, 75, 95, 70, 80, 90, 60]
+/* 饼图扇区半径 - 固定值确保明显差异 */
+const PIE_RADUSES = [45, 140, 60, 155, 75, 125, 50, 170]
 
 /* 统计卡片鲜艳配色 */
 const STAT_COLORS = [
@@ -73,12 +73,12 @@ export default function Dashboard(): React.ReactElement {
   const trendDataDay = [...stats.trend]
     .reverse()
     .map((t) => ({ date: t.date.slice(5), minutes: Math.round(t.seconds / 60) }))
-  const trendDataMonth = [...stats.trend]
-    .reverse()
-    .map((t) => ({ date: t.date.slice(0, 7), minutes: Math.round(t.seconds / 60) }))
-  const trendDataYear = [...stats.trend]
-    .reverse()
-    .map((t) => ({ date: t.date.slice(0, 4), minutes: Math.round(t.seconds / 60) }))
+  const trendDataMonth = stats.trendByMonth
+    ? [...stats.trendByMonth].reverse().map((t) => ({ date: t.date, minutes: Math.round(t.seconds / 60) }))
+    : []
+  const trendDataYear = stats.trendByYear
+    ? [...stats.trendByYear].reverse().map((t) => ({ date: t.date, minutes: Math.round(t.seconds / 60) }))
+    : []
   const todaySongData = stats.todayBySong.slice(0, 6).map((s) => ({
     name: truncate(s.title, 8),
     seconds: Math.round(s.seconds / 60)
@@ -249,7 +249,7 @@ export default function Dashboard(): React.ReactElement {
                     data={todaySongData}
                     dataKey="seconds"
                     nameKey="name"
-                    outerRadius={(data, index) => PIE_RADIUSES[index % PIE_RADIUSES.length]}
+                    outerRadius={120}
                     innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
@@ -292,7 +292,7 @@ export default function Dashboard(): React.ReactElement {
                     data={todayArtistData}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={(data, index) => PIE_RADIUSES[index % PIE_RADIUSES.length]}
+                    outerRadius={120}
                     innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"
@@ -335,7 +335,7 @@ export default function Dashboard(): React.ReactElement {
                     data={allArtistData}
                     dataKey="value"
                     nameKey="name"
-                    outerRadius={(data, index) => PIE_RADIUSES[index % PIE_RADIUSES.length]}
+                    outerRadius={120}
                     innerRadius={50}
                     paddingAngle={2}
                     stroke="#ffffff"

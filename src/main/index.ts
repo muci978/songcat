@@ -53,6 +53,17 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+
+  // 诊断白屏问题：监听渲染进程崩溃和加载失败
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.error('页面加载失败:', errorCode, errorDescription)
+    logger?.error(`页面加载失败: ${errorCode} ${errorDescription}`)
+  })
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('渲染进程崩溃:', details.reason, details.exitCode)
+    logger?.error(`渲染进程崩溃: ${details.reason} ${details.exitCode}`)
+  })
+
   // 关闭按钮 → 收到托盘（不退出）；真正退出（托盘「退出」）时 getIsQuitting() 为 true 才放行
   mainWindow.on('close', (e) => {
     if (!getIsQuitting()) {

@@ -3,7 +3,7 @@
  * - 每个通道对应一个 service / repo 调用，统一用 handle() 包装为 IpcResult。
  * - AppError 映射为结构化 IpcError；其他异常归为 INTERNAL。
  */
-import { app, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { IPC, type ErrorCode, type IpcResult } from '@shared'
 import { isAppError } from '../services/errors'
 import { assetsRepository } from '../db/repositories'
@@ -180,4 +180,14 @@ export function registerIpc(): void {
   )
   ipcMain.handle(IPC.system.getPathInfo, () => handle(() => getPathInfo()))
   ipcMain.handle(IPC.system.appVersion, () => handle(() => app.getVersion()))
+  ipcMain.handle(IPC.system.setFullscreen, (_e, fullscreen) =>
+    handle(async () => {
+      const win = BrowserWindow.getAllWindows()[0]
+      if (win) {
+        win.setFullScreen(fullscreen)
+        return true
+      }
+      return false
+    })
+  )
 }

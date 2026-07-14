@@ -1,4 +1,4 @@
-/** 共享 UI 基础组件（基于 global.css 的语义 class） */
+/** 共享 UI 基础组件（毛玻璃风格 v2） */
 import React, { useState } from 'react'
 import type { Difficulty, SongStatus } from '@shared'
 import { toast } from '../stores/toast'
@@ -16,7 +16,7 @@ export function Empty({
 }): React.ReactElement {
   return (
     <div className="empty">
-      <div style={{ fontSize: 34, marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 40, marginBottom: 12 }}>{icon}</div>
       {children}
     </div>
   )
@@ -38,7 +38,7 @@ export function Card({
   return (
     <section className={`card ${className ?? ''}`} style={style}>
       {(title || actions) && (
-        <div className="row-between" style={{ marginBottom: title ? 12 : 0 }}>
+        <div className="row-between" style={{ marginBottom: title ? 16 : 0 }}>
           {title && <div className="card-title">{title}</div>}
           {actions}
         </div>

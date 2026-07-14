@@ -60,6 +60,28 @@ export function recentDays(ref: Date, days: number): { start: Date; end: Date } 
   return { start, end }
 }
 
+/** 生成从 ref 往前推 months 个月的月份 key 序列（YYYY-MM），倒序，含当前月 */
+export function recentMonthKeys(ref: Date, months: number): string[] {
+  const out: string[] = []
+  for (let i = 0; i < months; i++) {
+    const y = ref.getFullYear()
+    const m = ref.getMonth() + 1 - i
+    const adjY = y + Math.floor((m - 1) / 12)
+    const adjM = ((m - 1) % 12) + 1
+    out.push(`${adjY}-${pad2(adjM)}`)
+  }
+  return out
+}
+
+/** 生成从 ref 往前推 years 个年份 key 序列（YYYY），倒序，含当前年 */
+export function recentYearKeys(ref: Date, years: number): string[] {
+  const out: string[] = []
+  for (let i = 0; i < years; i++) {
+    out.push(String(ref.getFullYear() - i))
+  }
+  return out
+}
+
 /** 把 (minutes) 时长格式化为 "1h 23m" / "5m" / "45s" */
 export function formatDuration(seconds: number): string {
   if (seconds <= 0) return '0s'

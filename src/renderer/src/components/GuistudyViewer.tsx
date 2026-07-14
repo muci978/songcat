@@ -1,21 +1,29 @@
 /**
  * guistudy 曲谱嵌入查看器。
  *
- * 从截图分析：webview 容器很大，但网页只渲染了顶部一小部分。
- * 可能原因：guistudy 是移动端网页，在桌面端 webview 中显示不正常。
- * 解决方案：设置移动端 useragent，让网页返回移动端版本。
- *
- * 全屏修复：Electron webview 内部使用 display:flex 确保 iframe 填满容器。
- * 关键是让 webview 通过 CSS flex 布局自动填满父容器，而不是用 JS 手动设置像素值。
+ * 全屏机制：纯 CSS position:fixed + 100vw/100vh。
+ * 全屏时通过 React Portal 渲染到 body 顶层，避免被祖先 overflow 裁切。
+ * Electron webview 内部使用 display:flex 确保 iframe 填满容器。
  * 参考：https://www.electronjs.org/docs/latest/api/webview-tag#css-styling-notes
  */
 import { useEffect, useRef, useState, memo } from 'react'
+import { createPortal } from 'react-dom'
 
-/** 隐藏广告 */
+/** 隐藏广告 + 强制内容填充 */
 const MINIMAL_HIDE_CSS = `
   [class*="popup-ad"], [class*="ad-banner"], [class*="app-download"],
   .adsbygoogle, iframe[src*="ad"] {
     display: none !important;
+  }
+  /* 强制 guistudy 内容填充 */
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-y: auto !important;
+  }
+  body > * {
+    max-width: 100% !important;
   }
 `
 
@@ -34,49 +42,46 @@ export const GuistudyViewer = memo(function GuistudyViewer({ url, height }: Guis
     executeJavaScript?: (code: string, userGesture?: boolean) => Promise<unknown>
     addEventListener: (t: string, cb: () => void) => void
     removeEventListener: (t: string, cb: () => void) => void
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any
   }>(null)
 
-  // 用 ref 控制 webview src，避免 React 重新渲染时重设 src 导致 webview 重新加载
   const prevUrlRef = useRef(url)
   useEffect(() => {
     if (url !== prevUrlRef.current) {
       prevUrlRef.current = url
       const wv = wvRef.current
-      if (wv) {
-        wv.src = url
-      }
+      if (wv) wv.src = url
     }
   }, [url])
 
-  // webview ready 时注入 CSS 和设置 useragent
   useEffect(() => {
     const wv = wvRef.current
     if (!wv) return
-
     const onReady = () => {
       wv.insertCSS?.(MINIMAL_HIDE_CSS).catch(() => {})
-
-      // 设置 viewport，确保移动端内容正确缩放
       wv.executeJavaScript?.(`
         (function() {
-          // 移除现有的 viewport meta 标签
           const existing = document.querySelector('meta[name="viewport"]');
           if (existing) existing.remove();
-
-          // 创建新的 viewport meta 标签
           const meta = document.createElement('meta');
           meta.name = 'viewport';
           meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';
           document.head.appendChild(meta);
+
+          // 强制 body 高度自适应
+          document.body.style.height = 'auto';
+          document.body.style.minHeight = '100vh';
+          document.documentElement.style.height = 'auto';
+
+          // 强制所有直接子元素填充宽度
+          document.body.style.display = 'flex';
+          document.body.style.flexDirection = 'column';
+          document.body.style.alignItems = 'stretch';
         })();
       `).catch(() => {})
     }
-
     wv.addEventListener('dom-ready', onReady)
     wv.addEventListener('did-navigate-in-page', onReady)
-
     return () => {
       wv.removeEventListener('dom-ready', onReady)
       wv.removeEventListener('did-navigate-in-page', onReady)
@@ -93,11 +98,17 @@ export const GuistudyViewer = memo(function GuistudyViewer({ url, height }: Guis
     return () => window.removeEventListener('keydown', onKey)
   }, [fs])
 
+  // 全屏时阻止背景滚动
+  useEffect(() => {
+    document.body.style.overflow = fs ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [fs])
+
   const containerStyle = height
     ? { height: typeof height === 'number' ? `${height}px` : height, flex: 'none' as const }
     : { flex: 1, minHeight: 0 }
 
-  return (
+  const viewer = (
     <div
       className={fs ? '' : 'guistudy-viewer'}
       style={{
@@ -128,8 +139,6 @@ export const GuistudyViewer = memo(function GuistudyViewer({ url, height }: Guis
       {/*
         webview 容器：使用 flex:1 + minHeight:0 确保填满剩余空间。
         Electron webview 内部使用 display:flex，子 iframe 会自动填满 webview 容器。
-        因此只需确保 webview 本身通过 CSS 填满其父容器即可，无需 JS 手动设置像素尺寸。
-        参考：https://www.electronjs.org/docs/latest/api/webview-tag#css-styling-notes
       */}
       <div
         style={{
@@ -162,4 +171,7 @@ export const GuistudyViewer = memo(function GuistudyViewer({ url, height }: Guis
       </div>
     </div>
   )
+
+  // 全屏时 Portal 到 body，避免被祖先 overflow 裁切
+  return fs ? createPortal(viewer, document.body) : viewer
 })

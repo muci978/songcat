@@ -135,33 +135,33 @@ export default function SongDetail(): React.ReactElement {
       </div>
 
       {/* 概要 Card */}
-      <Card title="概要" style={{ marginBottom: 16 }}>
-        <div className="row wrap" style={{ gap: 24 }}>
+      <Card title="概要" style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
+        <div className="row wrap" style={{ gap: 28 }}>
           <div className="stat">
             <div className="stat-label">学习状态</div>
-            <div className="stat-value">
+            <div className="stat-value" style={{ fontSize: 20 }}>
               <StatusBadge status={detail.status} />
             </div>
           </div>
           <div className="stat">
             <div className="stat-label">收藏</div>
-            <div className="stat-value">{detail.isFavorite ? '★' : '☆'}</div>
+            <div className="stat-value" style={{ fontSize: 28 }}>{detail.isFavorite ? '★' : '☆'}</div>
           </div>
           <div className="stat">
             <div className="stat-label">难度</div>
-            <div className="stat-value">
+            <div className="stat-value" style={{ fontSize: 20 }}>
               <Stars value={detail.difficulty} readonly />
             </div>
           </div>
           <div className="stat">
             <div className="stat-label">添加日期</div>
-            <div className="stat-value" style={{ fontSize: 16 }}>
+            <div className="stat-value" style={{ fontSize: 18 }}>
               {formatDate(detail.dateAdded)}
             </div>
           </div>
           <div className="stat">
             <div className="stat-label">累计练习</div>
-            <div className="stat-value" style={{ fontSize: 16 }}>
+            <div className="stat-value" style={{ fontSize: 18 }}>
               {totalPractice > 0 ? formatSeconds(totalPractice) : '—'}
             </div>
           </div>
@@ -184,7 +184,7 @@ export default function SongDetail(): React.ReactElement {
           )}
         </div>
         {detail.notes && (
-          <div className="field" style={{ marginTop: 16, marginBottom: 0 }}>
+          <div className="field" style={{ marginTop: 20, marginBottom: 0 }}>
             <div className="label">备注</div>
             <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-muted)' }}>
               {detail.notes}
@@ -196,7 +196,7 @@ export default function SongDetail(): React.ReactElement {
       {/* 曲谱资源 Card */}
       <Card
         title={`曲谱资源（${detail.scores.length}）`}
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}
         actions={
           <div className="actions">
             <ImportButton songId={songId} onDone={() => void reload()} />
@@ -223,7 +223,7 @@ export default function SongDetail(): React.ReactElement {
       </Card>
 
       {/* 来源链接 Card */}
-      <Card title={`来源链接（${detail.sourceLinks.length}）`} style={{ marginBottom: 16 }}>
+      <Card title={`来源链接（${detail.sourceLinks.length}）`} style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
         {detail.sourceLinks.length === 0 ? (
           <Empty icon="🔗">没有来源链接</Empty>
         ) : (
@@ -257,7 +257,7 @@ export default function SongDetail(): React.ReactElement {
       </Card>
 
       {/* 录音 Card */}
-      <Card title="录音" style={{ marginBottom: 16 }}>
+      <Card title="录音" style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
         {detail.recording ? (
           <div>
             <audio controls src={recordingUrl} style={{ width: '100%' }} />
@@ -294,7 +294,7 @@ export default function SongDetail(): React.ReactElement {
       </Card>
 
       {/* 最近练习 Card */}
-      <Card title="最近练习">
+      <Card title="最近练习" style={{ borderRadius: 'var(--radius)' }}>
         {detail.recentSessions.length === 0 ? (
           <Empty icon="📈">还没有练习记录</Empty>
         ) : (

@@ -9,7 +9,9 @@ import {
   localMonthKey,
   localYearKey,
   recentDays,
-  dateKeyRange
+  dateKeyRange,
+  recentMonthKeys,
+  recentYearKeys
 } from './time'
 
 export interface SessionAggItem {
@@ -31,6 +33,10 @@ export interface AggregateResult {
   yearSeconds: number
   /** 最近 trendDays 天（含无练习日，0 填充），按日期倒序 */
   trend: { date: string; seconds: number }[]
+  /** 最近 12 个月（含无练习月，0 填充），按月份倒序 */
+  trendByMonth: { date: string; seconds: number }[]
+  /** 最近 5 年（含无练习年，0 填充），按年份倒序 */
+  trendByYear: { date: string; seconds: number }[]
   /** 今日各歌曲练习时长 */
   todayBySong: { songId: string; title: string; artist: string | null; seconds: number }[]
   /** 全部时段艺人练习占比 */
@@ -53,6 +59,8 @@ export function aggregatePractice(
   const todayBySong = new Map<string, number>()
   const byArtist = new Map<string, number>()
   const trendMap = new Map<string, number>()
+  const trendByMonthMap = new Map<string, number>()
+  const trendByYearMap = new Map<string, number>()
 
   for (const s of sessions) {
     if (s.durationSeconds <= 0) continue
@@ -72,11 +80,19 @@ export function aggregatePractice(
     byArtist.set(artistKey, (byArtist.get(artistKey) ?? 0) + s.durationSeconds)
 
     trendMap.set(dk, (trendMap.get(dk) ?? 0) + s.durationSeconds)
+    trendByMonthMap.set(mk, (trendByMonthMap.get(mk) ?? 0) + s.durationSeconds)
+    trendByYearMap.set(yk, (trendByYearMap.get(yk) ?? 0) + s.durationSeconds)
   }
 
   const { start, end } = recentDays(now, trendDays)
   const trendDates = dateKeyRange(start, end) // 倒序
   const trend = trendDates.map((date) => ({ date, seconds: trendMap.get(date) ?? 0 }))
+
+  const monthKeys = recentMonthKeys(now, 12)
+  const trendByMonth = monthKeys.map((date) => ({ date, seconds: trendByMonthMap.get(date) ?? 0 }))
+
+  const yearKeys = recentYearKeys(now, 5)
+  const trendByYear = yearKeys.map((date) => ({ date, seconds: trendByYearMap.get(date) ?? 0 }))
 
   const todayBySongArr = [...todayBySong.entries()]
     .map(([songId, seconds]) => {
@@ -99,6 +115,8 @@ export function aggregatePractice(
     monthSeconds,
     yearSeconds,
     trend,
+    trendByMonth,
+    trendByYear,
     todayBySong: todayBySongArr,
     byArtist: byArtistArr
   }

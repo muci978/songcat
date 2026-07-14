@@ -143,7 +143,8 @@ export const IPC = {
     openPath: 'system:openPath',
     openLogsFolder: 'system:openLogsFolder',
     getPathInfo: 'system:getPathInfo',
-    appVersion: 'system:appVersion'
+    appVersion: 'system:appVersion',
+    setFullscreen: 'system:setFullscreen'
   }
 } as const
 
@@ -379,6 +380,10 @@ export interface SystemApi {
   openLogsFolder(): Promise<IpcResult<boolean>>
   getPathInfo(): Promise<IpcResult<PathInfo>>
   appVersion(): Promise<IpcResult<string>>
+  /** 设置窗口全屏状态 */
+  setFullscreen(fullscreen: boolean): Promise<IpcResult<boolean>>
+  /** 监听全屏状态变化 */
+  onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 }
 
 export interface SongCatApi {

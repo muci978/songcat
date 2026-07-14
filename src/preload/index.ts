@@ -76,7 +76,13 @@ const api: SongCatApi = {
     openPath: (p) => ipcRenderer.invoke(IPC.system.openPath, p),
     openLogsFolder: () => ipcRenderer.invoke(IPC.system.openLogsFolder),
     getPathInfo: () => ipcRenderer.invoke(IPC.system.getPathInfo),
-    appVersion: () => ipcRenderer.invoke(IPC.system.appVersion)
+    appVersion: () => ipcRenderer.invoke(IPC.system.appVersion),
+    setFullscreen: (fullscreen) => ipcRenderer.invoke(IPC.system.setFullscreen, fullscreen),
+    onFullscreenChanged: (callback) => {
+      const handler = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen)
+      ipcRenderer.on('fullscreen-changed', handler)
+      return () => ipcRenderer.removeListener('fullscreen-changed', handler)
+    }
   }
 }
 

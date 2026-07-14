@@ -299,6 +299,10 @@ export interface DashboardStats {
   yearPracticeSeconds: number
   /** 最近 N 天的练习分钟趋势 */
   trend: { date: string; seconds: number }[]
+  /** 最近 12 个月的练习分钟趋势 */
+  trendByMonth: { date: string; seconds: number }[]
+  /** 最近 5 年的练习分钟趋势 */
+  trendByYear: { date: string; seconds: number }[]
   /** 今日各歌曲练习占比 */
   todayBySong: { songId: string; title: string; artist: string | null; seconds: number }[]
   /** 全部练习的艺人占比 */

@@ -73,6 +73,8 @@ export function getStats(): DashboardStats {
     monthPracticeSeconds: agg.monthSeconds,
     yearPracticeSeconds: agg.yearSeconds,
     trend: agg.trend,
+    trendByMonth: agg.trendByMonth,
+    trendByYear: agg.trendByYear,
     todayBySong: agg.todayBySong,
     byArtist: agg.byArtist,
     recentPractice
