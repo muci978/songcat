@@ -138,6 +138,9 @@ export const IPC = {
   health: {
     runCheck: 'health:runCheck'
   },
+  updater: {
+    checkForUpdate: 'updater:checkForUpdate'
+  },
   system: {
     openExternal: 'system:openExternal',
     openPath: 'system:openPath',
@@ -386,6 +389,30 @@ export interface SystemApi {
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
 }
 
+/* ------------------------------------------------------------------ */
+/* 更新检查                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface UpdateInfo {
+  /** 最新版本号（如 "0.3.4"） */
+  latestVersion: string
+  /** 当前版本号 */
+  currentVersion: string
+  /** 是否有更新 */
+  hasUpdate: boolean
+  /** GitHub Release 页面 URL */
+  releaseUrl: string
+  /** Release notes（Markdown 原文） */
+  releaseNotes: string
+  /** 发布日期（ISO 字符串） */
+  publishedAt: string
+}
+
+export interface UpdaterApi {
+  /** 检查 GitHub Releases 是否有新版本 */
+  checkForUpdate(): Promise<IpcResult<UpdateInfo>>
+}
+
 export interface SongCatApi {
   library: LibraryApi
   assets: AssetsApi
@@ -398,5 +425,6 @@ export interface SongCatApi {
   settings: SettingsApi
   backup: BackupApi
   health: HealthApi
+  updater: UpdaterApi
   system: SystemApi
 }

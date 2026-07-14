@@ -71,6 +71,9 @@ const api: SongCatApi = {
   health: {
     runCheck: () => ipcRenderer.invoke(IPC.health.runCheck)
   },
+  updater: {
+    checkForUpdate: () => ipcRenderer.invoke(IPC.updater.checkForUpdate)
+  },
   system: {
     openExternal: (url) => ipcRenderer.invoke(IPC.system.openExternal, url),
     openPath: (p) => ipcRenderer.invoke(IPC.system.openPath, p),

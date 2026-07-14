@@ -7,7 +7,8 @@ import type {
   ResourceSource,
   ResourceSourceKind,
   ResourceSourcePolicy,
-  TestDeepSeekResult
+  TestDeepSeekResult,
+  UpdateInfo
 } from '@shared'
 import { ACCENT_PALETTE, DEEPSEEK_PRIVACY_TEXT } from '@shared'
 import { api, unwrap } from '../lib/api'
@@ -15,6 +16,7 @@ import { formatDateTime } from '../lib/format'
 import { toast } from '../stores/toast'
 import { useSettings } from '../stores/settings'
 import { Card, ConfirmDialog, Modal, Spinner, useAsyncAction } from '../components/ui'
+import { UpdateDialog } from '../components/UpdateDialog'
 
 const KIND_LABEL: Record<ResourceSourceKind, string> = {
   score: '曲谱',
@@ -36,6 +38,8 @@ export default function Settings(): React.ReactElement {
   const [appVersion, setAppVersion] = useState<string>('')
   const [healthReport, setHealthReport] = useState<HealthReport | null>(null)
   const [showHealth, setShowHealth] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [showUpdate, setShowUpdate] = useState(false)
 
   const reloadSources = async (): Promise<void> => {
     try {
@@ -94,9 +98,31 @@ export default function Settings(): React.ReactElement {
       <AppearanceCard settings={settings} update={update} />
 
       {/* 6. 关于 */}
-      <AboutCard appVersion={appVersion} pathInfo={pathInfo} />
+      <AboutCard
+        appVersion={appVersion}
+        pathInfo={pathInfo}
+        onCheckUpdate={async () => {
+          try {
+            const info = await unwrap(api.updater.checkForUpdate())
+            if (info.hasUpdate) {
+              setUpdateInfo(info)
+              setShowUpdate(true)
+            } else {
+              toast.success('已是最新版本')
+            }
+          } catch (e) {
+            toast.error((e as Error).message)
+          }
+        }}
+      />
 
       <HealthReportModal open={showHealth} report={healthReport} onClose={() => setShowHealth(false)} />
+
+      <UpdateDialog
+        open={showUpdate}
+        info={updateInfo}
+        onClose={() => setShowUpdate(false)}
+      />
     </div>
   )
 }
@@ -724,12 +750,16 @@ function AppearanceCard({
 
 function AboutCard({
   appVersion,
-  pathInfo
+  pathInfo,
+  onCheckUpdate
 }: {
   appVersion: string
   pathInfo: PathInfo | null
+  onCheckUpdate: () => Promise<void>
 }): React.ReactElement {
   const openLogs = useAsyncAction()
+  const checkUpdate = useAsyncAction()
+
   return (
     <Card title="关于" style={{ marginBottom: 16 }}>
       <div className="row-between" style={{ marginBottom: 12 }}>
@@ -739,17 +769,26 @@ function AboutCard({
             版本 {appVersion || '—'}
           </div>
         </div>
-        <button
-          className="btn btn-sm"
-          disabled={openLogs.loading}
-          onClick={() =>
-            openLogs.run(async () => {
-              await unwrap(api.system.openLogsFolder())
-            })
-          }
-        >
-          打开日志
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          <button
+            className="btn btn-sm"
+            disabled={checkUpdate.loading}
+            onClick={() => checkUpdate.run(onCheckUpdate)}
+          >
+            {checkUpdate.loading ? '检查中…' : '检查更新'}
+          </button>
+          <button
+            className="btn btn-sm"
+            disabled={openLogs.loading}
+            onClick={() =>
+              openLogs.run(async () => {
+                await unwrap(api.system.openLogsFolder())
+              })
+            }
+          >
+            打开日志
+          </button>
+        </div>
       </div>
       {pathInfo && (
         <div className="row wrap" style={{ gap: 16 }}>
