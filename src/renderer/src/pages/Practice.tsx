@@ -10,6 +10,7 @@ import { toast } from '../stores/toast'
 import { Card, ConfirmDialog, Empty, Spinner, Stars, StatusBadge, useAsyncAction } from '../components/ui'
 import { GuistudyViewer } from '../components/GuistudyViewer'
 import { ImageViewer } from '../components/ImageViewer'
+import { PdfViewer } from '../components/PdfViewer'
 import { SortPreviewModal } from '../components/SortPreviewModal'
 
 /** 计时器状态机 */
@@ -286,8 +287,6 @@ export default function Practice(): React.ReactElement {
     detail.scores.find((s) => (s.type === 'pdf' || s.type === 'image') && s.hasLocalFile) ??
     detail.scores.find((s) => s.type === 'link' && s.source !== 'guistudy')
 
-  const assetUrl = (assetId: string): string => `songcat-asset://${assetId}`
-
   // 当前曲谱所在分组（用于多图/PDF连续浏览）
   const group = selectedScore ? siblingGroup(selectedScore, detail.scores) : []
 
@@ -340,10 +339,10 @@ export default function Practice(): React.ReactElement {
                 selectedScore.source === 'guistudy' && selectedScore.sourceUrl ? (
                   <GuistudyViewer url={selectedScore.sourceUrl} height="100%" />
                 ) : selectedScore.type === 'pdf' ? (
-                  <iframe
+                  <PdfViewer
+                    assetId={selectedScore.id}
                     title={selectedScore.title ?? '曲谱'}
-                    src={assetUrl(selectedScore.id)}
-                    style={{ width: '100%', height: '100%', border: '0', borderRadius: 8 }}
+                    height="100%"
                   />
                 ) : selectedScore.type === 'image' ? (
                   <ImageViewer

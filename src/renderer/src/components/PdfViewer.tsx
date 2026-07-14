@@ -1,45 +1,39 @@
 /**
- * 图片曲谱查看器，支持全屏、翻页和缩放。
+ * PDF 曲谱查看器，支持全屏和缩放。
  *
  * 全屏机制：纯 CSS position:fixed + 100vw/100vh。
  * 全屏时通过 React Portal 渲染到 body 顶层，避免被祖先 overflow 裁切。
  *
  * 缩放交互（仅全屏时可用）：
  * - 鼠标滚轮：以光标位置为中心平滑缩放（CSS transition 动画）
- * - 工具栏按钮：＋ / －，可输入百分比（如 103、115）
- * - 双击：在适应窗口和 200% 之间切换
- * - 拖拽平移：放大后可拖拽移动图片
+ * - 工具栏按钮：＋ / －，可输入百分比
+ * - 双击：在适应窗口和 150% 之间切换
+ * - 拖拽平移：放大后可拖拽移动
  * - 一键重置：恢复适应窗口
  * - Ctrl+滚轮：更精细的缩放步进
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
-import type { ScoreAsset } from '@shared'
 import { LOCAL_ASSET_PROTOCOL } from '@shared'
 
-const MIN_SCALE = 0.25
-const MAX_SCALE = 8
+const MIN_SCALE = 0.5
+const MAX_SCALE = 5
 const WHEEL_STEP = 0.08
 const WHEEL_STEP_FINE = 0.02
 const BTN_STEP = 0.15
 const TRANSITION_MS = 180
 
-interface ImageViewerProps {
+interface PdfViewerProps {
   assetId: string
-  alt?: string
+  title?: string
   height?: string | number
-  group?: ScoreAsset[]
-  currentId?: string
 }
 
-export function ImageViewer({
+export function PdfViewer({
   assetId,
-  alt,
-  height,
-  group,
-  currentId
-}: ImageViewerProps): React.ReactElement {
+  title,
+  height
+}: PdfViewerProps): React.ReactElement {
   const [fs, setFs] = useState(false)
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -47,16 +41,13 @@ export function ImageViewer({
   const [inputVal, setInputVal] = useState('100')
   const [animating, setAnimating] = useState(false)
 
-  // 用 ref 存储实时值，避免 useCallback 闭包过期问题
   const scaleRef = useRef(1)
   const offsetRef = useRef({ x: 0, y: 0 })
   const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const dragStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const navigate = useNavigate()
 
-  // 同步 ref
   useEffect(() => { scaleRef.current = scale }, [scale])
   useEffect(() => { offsetRef.current = offset }, [offset])
 
@@ -86,13 +77,11 @@ export function ImageViewer({
   useEffect(() => { resetView() }, [assetId, resetView])
   useEffect(() => { if (!fs) resetView() }, [fs, resetView])
 
-  // 全屏时阻止背景滚动
   useEffect(() => {
     document.body.style.overflow = fs ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [fs])
 
-  // 清理定时器
   useEffect(() => clearAnimTimer, [clearAnimTimer])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -128,14 +117,12 @@ export function ImageViewer({
   const handleDoubleClick = useCallback(() => {
     if (!fs) return
     if (scaleRef.current <= 1.01) {
-      // 放大到 200%
-      scaleRef.current = 2
+      scaleRef.current = 1.5
       offsetRef.current = { x: 0, y: 0 }
-      setScale(2)
+      setScale(1.5)
       setOffset({ x: 0, y: 0 })
-      setInputVal('200')
+      setInputVal('150')
     } else {
-      // 重置
       scaleRef.current = 1
       offsetRef.current = { x: 0, y: 0 }
       setScale(1)
@@ -149,7 +136,6 @@ export function ImageViewer({
     if (!fs || scaleRef.current <= 1) return
     e.preventDefault()
     setDragging(true)
-    // 拖拽开始时立即关闭动画，避免拖拽时图片"漂移"
     setAnimating(false)
     clearAnimTimer()
     dragStartRef.current = {
@@ -176,8 +162,7 @@ export function ImageViewer({
   }, [dragging])
 
   const zoomIn = useCallback(() => {
-    const prev = scaleRef.current
-    const next = Math.min(MAX_SCALE, prev + BTN_STEP)
+    const next = Math.min(MAX_SCALE, scaleRef.current + BTN_STEP)
     scaleRef.current = next
     setScale(next)
     setInputVal(String(Math.round(next * 100)))
@@ -185,8 +170,7 @@ export function ImageViewer({
   }, [startAnimation])
 
   const zoomOut = useCallback(() => {
-    const prev = scaleRef.current
-    const next = Math.max(MIN_SCALE, prev - BTN_STEP)
+    const next = Math.max(MIN_SCALE, scaleRef.current - BTN_STEP)
     scaleRef.current = next
     setScale(next)
     setInputVal(String(Math.round(next * 100)))
@@ -225,43 +209,22 @@ export function ImageViewer({
     if (e.key === 'Enter') inputRef.current?.blur()
   }
 
-  const containerStyle = height
-    ? { height: typeof height === 'number' ? `${height}px` : height, flex: 'none' as const }
-    : { flex: 1, minHeight: 0 }
-
-  const src = `${LOCAL_ASSET_PROTOCOL}://${assetId}`
-
-  const showPager = fs && group && group.length > 1 && currentId
-  const curIdx = showPager ? group.findIndex((g) => g.id === currentId) : -1
-  const songId = showPager ? group[0]?.songId : undefined
-
-  const goPrev = () => {
-    if (!showPager || curIdx <= 0) return
-    const prev = group![curIdx - 1]
-    if (prev && songId) navigate(`/songs/${songId}/practice/${prev.id}`)
-  }
-  const goNext = () => {
-    if (!showPager || curIdx >= group!.length - 1) return
-    const next = group![curIdx + 1]
-    if (next && songId) navigate(`/songs/${songId}/practice/${next.id}`)
-  }
-
-  // Esc 退出 + 翻页快捷键
+  // Esc 退出
   useEffect(() => {
     if (!fs) return
     const onKey = (e: KeyboardEvent) => {
       if (document.activeElement === inputRef.current) return
       if (e.key === 'Escape') setFs(false)
-      if (showPager) {
-        if (e.key === 'ArrowLeft') goPrev()
-        if (e.key === 'ArrowRight') goNext()
-      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fs, showPager, curIdx, group, songId])
+  }, [fs])
 
+  const containerStyle = height
+    ? { height: typeof height === 'number' ? `${height}px` : height, flex: 'none' as const }
+    : { flex: 1, minHeight: 0 }
+
+  const src = `${LOCAL_ASSET_PROTOCOL}://${assetId}`
   const isZoomed = scale > 1
 
   const viewer = (
@@ -307,7 +270,7 @@ export function ImageViewer({
         </button>
       </div>
 
-      {/* 图片容器 */}
+      {/* PDF 容器 */}
       <div
         ref={containerRef}
         onWheel={handleWheel}
@@ -324,39 +287,36 @@ export function ImageViewer({
           position: 'relative',
         }}
       >
-        <img
-          src={src}
-          alt={alt ?? '曲谱'}
-          draggable={false}
+        <div
           style={{
             position: 'absolute',
             left: '50%',
             top: '50%',
+            width: '100%',
+            height: '100%',
             transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
             transformOrigin: '0 0',
-            maxWidth: scale === 1 ? '100%' : 'none',
-            maxHeight: scale === 1 ? '100%' : 'none',
-            objectFit: 'contain',
             transition: animating && !dragging
               ? `transform ${TRANSITION_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)`
               : 'none',
-            userSelect: 'none',
             willChange: 'transform',
           }}
-        />
-      </div>
-
-      {/* 翻页控件 */}
-      {showPager && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '8px 0', background: 'rgba(255,255,255,0.9)', borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-sm" disabled={curIdx <= 0} onClick={goPrev}>← 上一页</button>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{curIdx + 1} / {group!.length}</span>
-          <button className="btn btn-sm" disabled={curIdx >= group!.length - 1} onClick={goNext}>下一页 →</button>
+        >
+          <iframe
+            title={title ?? '曲谱'}
+            src={src}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 0,
+              background: '#fff',
+              pointerEvents: dragging ? 'none' : 'auto',
+            }}
+          />
         </div>
-      )}
+      </div>
     </div>
   )
 
-  // 全屏时 Portal 到 body，避免被祖先 overflow 裁切
   return fs ? createPortal(viewer, document.body) : viewer
 }
