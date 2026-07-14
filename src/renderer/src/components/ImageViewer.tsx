@@ -20,10 +20,9 @@ import { LOCAL_ASSET_PROTOCOL } from '@shared'
 
 const MIN_SCALE = 0.25
 const MAX_SCALE = 8
-const WHEEL_STEP = 0.08
-const WHEEL_STEP_FINE = 0.02
-const BTN_STEP = 0.15
-const TRANSITION_MS = 180
+const WHEEL_STEP = 0.01
+const BTN_STEP = 0.05
+const TRANSITION_MS = 120
 
 interface ImageViewerProps {
   assetId: string
@@ -103,7 +102,7 @@ export function ImageViewer({
     const rect = container.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
-    const step = e.ctrlKey || e.metaKey ? WHEEL_STEP_FINE : WHEEL_STEP
+    const step = WHEEL_STEP
     const delta = e.deltaY < 0 ? step : -step
 
     const prev = scaleRef.current
@@ -146,7 +145,11 @@ export function ImageViewer({
   }, [fs, startAnimation])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!fs || scaleRef.current <= 1) return
+    if (!fs) return
+    // 缩放或偏移与默认状态不同时允许拖拽（含 <100% 的情况）
+    const s = scaleRef.current
+    const o = offsetRef.current
+    if (s === 1 && o.x === 0 && o.y === 0) return
     e.preventDefault()
     setDragging(true)
     // 拖拽开始时立即关闭动画，避免拖拽时图片"漂移"
@@ -262,7 +265,7 @@ export function ImageViewer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fs, showPager, curIdx, group, songId])
 
-  const isZoomed = scale > 1
+  const isZoomed = scale !== 1 || offset.x !== 0 || offset.y !== 0
 
   const viewer = (
     <div
@@ -334,8 +337,8 @@ export function ImageViewer({
             top: '50%',
             transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
             transformOrigin: '0 0',
-            maxWidth: scale === 1 ? '100%' : 'none',
-            maxHeight: scale === 1 ? '100%' : 'none',
+            maxWidth: !isZoomed ? '100%' : 'none',
+            maxHeight: !isZoomed ? '100%' : 'none',
             objectFit: 'contain',
             transition: animating && !dragging
               ? `transform ${TRANSITION_MS}ms cubic-bezier(0.22, 0.61, 0.36, 1)`

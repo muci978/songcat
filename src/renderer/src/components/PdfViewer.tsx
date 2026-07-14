@@ -16,12 +16,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LOCAL_ASSET_PROTOCOL } from '@shared'
 
-const MIN_SCALE = 0.5
-const MAX_SCALE = 5
-const WHEEL_STEP = 0.08
-const WHEEL_STEP_FINE = 0.02
-const BTN_STEP = 0.15
-const TRANSITION_MS = 180
+const MIN_SCALE = 0.25
+const MAX_SCALE = 8
+const WHEEL_STEP = 0.01
+const BTN_STEP = 0.05
+const TRANSITION_MS = 120
 
 interface PdfViewerProps {
   assetId: string
@@ -92,7 +91,7 @@ export function PdfViewer({
     const rect = container.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
-    const step = e.ctrlKey || e.metaKey ? WHEEL_STEP_FINE : WHEEL_STEP
+    const step = WHEEL_STEP
     const delta = e.deltaY < 0 ? step : -step
 
     const prev = scaleRef.current
@@ -133,7 +132,10 @@ export function PdfViewer({
   }, [fs, startAnimation])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!fs || scaleRef.current <= 1) return
+    if (!fs) return
+    const s = scaleRef.current
+    const o = offsetRef.current
+    if (s === 1 && o.x === 0 && o.y === 0) return
     e.preventDefault()
     setDragging(true)
     setAnimating(false)
@@ -225,7 +227,7 @@ export function PdfViewer({
     : { flex: 1, minHeight: 0 }
 
   const src = `${LOCAL_ASSET_PROTOCOL}://${assetId}`
-  const isZoomed = scale > 1
+  const isZoomed = scale !== 1 || offset.x !== 0 || offset.y !== 0
 
   const viewer = (
     <div
