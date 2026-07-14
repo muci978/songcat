@@ -277,32 +277,36 @@ function Toggle({ on, disabled, onClick }: { on: boolean; disabled?: boolean; on
   return (
     <button
       type="button"
-      className="btn btn-sm"
       disabled={disabled}
       onClick={onClick}
       style={{
+        display: 'flex',
+        alignItems: 'center',
         background: on ? 'var(--accent)' : 'var(--bg-subtle)',
-        borderColor: on ? 'var(--accent)' : 'var(--border-strong)',
-        color: on ? 'var(--accent-text)' : 'var(--text-muted)',
-        width: 38,
-        height: 22,
+        border: on ? '2px solid var(--accent)' : '2px solid var(--border-strong)',
+        width: 40,
+        height: 24,
         padding: 0,
         borderRadius: 999,
         position: 'relative',
-        transition: 'background 0.15s'
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'background 0.15s, border-color 0.15s',
+        outline: 'none',
+        flexShrink: 0,
       }}
       aria-pressed={on}
       aria-label={on ? '已启用，点击禁用' : '已禁用，点击启用'}
     >
       <span
         style={{
-          display: 'inline-block',
-          width: 14,
-          height: 14,
+          display: 'block',
+          width: 18,
+          height: 18,
           borderRadius: '50%',
-          background: 'var(--bg-elevated)',
-          transform: on ? 'translateX(8px)' : 'translateX(-7px)',
-          transition: 'transform 0.15s'
+          background: '#fff',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+          transform: on ? 'translateX(17px)' : 'translateX(-1px)',
+          transition: 'transform 0.15s ease',
         }}
       />
     </button>
