@@ -153,6 +153,7 @@ export default function Dashboard(): React.ReactElement {
                     axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
                   />
                   <Tooltip
+                    trigger="hover"
                     contentStyle={{
                       background: '#ffffff',
                       border: '1px solid rgba(0,0,0,0.08)',
@@ -162,7 +163,7 @@ export default function Dashboard(): React.ReactElement {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                     }}
                   />
-                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} activeBar={false} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -184,6 +185,7 @@ export default function Dashboard(): React.ReactElement {
                     axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
                   />
                   <Tooltip
+                    trigger="hover"
                     contentStyle={{
                       background: '#ffffff',
                       border: '1px solid rgba(0,0,0,0.08)',
@@ -193,7 +195,7 @@ export default function Dashboard(): React.ReactElement {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                     }}
                   />
-                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} activeBar={false} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -215,6 +217,7 @@ export default function Dashboard(): React.ReactElement {
                     axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
                   />
                   <Tooltip
+                    trigger="hover"
                     contentStyle={{
                       background: '#ffffff',
                       border: '1px solid rgba(0,0,0,0.08)',
@@ -224,7 +227,7 @@ export default function Dashboard(): React.ReactElement {
                       boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                     }}
                   />
-                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} activeBar={false} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -250,6 +253,7 @@ export default function Dashboard(): React.ReactElement {
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
+                    activeShape={false}
                   >
                     {todaySongData.map((entry, i) => (
                       <Cell
@@ -261,6 +265,7 @@ export default function Dashboard(): React.ReactElement {
                     ))}
                   </Pie>
                   <Tooltip
+                    trigger="hover"
                     formatter={(v) => `${Math.round(Number(v))} 分钟`}
                     contentStyle={{
                       background: '#ffffff',
@@ -293,6 +298,7 @@ export default function Dashboard(): React.ReactElement {
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
+                    activeShape={false}
                   >
                     {todayArtistData.map((entry, i) => (
                       <Cell
@@ -304,6 +310,7 @@ export default function Dashboard(): React.ReactElement {
                     ))}
                   </Pie>
                   <Tooltip
+                    trigger="hover"
                     formatter={(v) => formatSeconds(Number(v))}
                     contentStyle={{
                       background: '#ffffff',
@@ -336,6 +343,7 @@ export default function Dashboard(): React.ReactElement {
                     paddingAngle={2}
                     stroke="#ffffff"
                     strokeWidth={2}
+                    activeShape={false}
                   >
                     {allArtistData.map((entry, i) => (
                       <Cell
@@ -347,6 +355,7 @@ export default function Dashboard(): React.ReactElement {
                     ))}
                   </Pie>
                   <Tooltip
+                    trigger="hover"
                     formatter={(v) => formatSeconds(Number(v))}
                     contentStyle={{
                       background: '#ffffff',

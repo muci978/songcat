@@ -592,3 +592,13 @@ h3 {
 .glow-accent {
   box-shadow: var(--shadow-glow);
 }
+
+/* 隐藏 Recharts 图表点击时的 active 高亮方框 */
+.recharts-active-dot,
+.recharts-bar-rectangle[fill-opacity],
+.recharts-pie-sector[fill-opacity] {
+  outline: none !important;
+}
+.recharts-wrapper .recharts-surface {
+  cursor: default !important;
+}
