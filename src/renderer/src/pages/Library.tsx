@@ -128,10 +128,10 @@ export default function Library(): React.ReactElement {
     setSelected(new Set())
   }, [sortBy, multiSelect])
 
-  // 前端排序（首字母视图强制按标题排序以确保分组正确）
+  // 前端排序（首字母视图强制按标题排序以确保分组正确；自定义排序按首字母+sortOrder）
   const sorted = useMemo(() => {
     const arr = letterFilter ? songs.filter((s) => groupInitial(s) === letterFilter) : [...songs]
-    const effectiveSort = view === 'alpha' ? 'title' : sortBy
+    const effectiveSort = view === 'alpha' ? (sortBy === 'custom' ? 'custom' : 'title') : sortBy
     switch (effectiveSort) {
       case 'title':
         arr.sort((a, b) => {
@@ -155,6 +155,13 @@ export default function Library(): React.ReactElement {
           (a, b) =>
             (b.difficulty ?? 0) - (a.difficulty ?? 0) || cmpStr(a.title, b.title)
         )
+        break
+      case 'custom':
+        arr.sort((a, b) => {
+          const g = cmpStr(groupInitial(a), groupInitial(b))
+          if (g !== 0) return g
+          return a.sortOrder - b.sortOrder || cmpStr(a.title, b.title)
+        })
         break
     }
     return arr
@@ -350,7 +357,7 @@ export default function Library(): React.ReactElement {
               onToggle={toggleSelect}
               onDelete={setSingleDelete}
               sortable={sortBy === 'custom'}
-              onReorder={(items) => void unwrap(api.library.reorder(items))}
+              onReorder={(items) => { void unwrap(api.library.reorder(items)).then(() => void reload()) }}
             />
           ) : (
             <div className="grid grid-auto">
@@ -513,9 +520,11 @@ function AlphaView({
     e.preventDefault()
     const from = dragIndexRef.current
     if (from === null || from === dropIndex) return
-    const item = list.splice(from, 1)[0]
-    list.splice(dropIndex, 0, item)
-    onReorder(list.map((s, i) => ({ id: s.id, sortOrder: i })))
+    // 创建新数组，避免修改 props
+    const newList = [...list]
+    const [item] = newList.splice(from, 1)
+    newList.splice(dropIndex, 0, item)
+    onReorder(newList.map((s, i) => ({ id: s.id, sortOrder: i })))
     dragIndexRef.current = null
   }
 
@@ -587,24 +596,19 @@ function AlphaSongRow({
     e.stopPropagation()
     onDelete(s)
   }
-  return (
-    <Link
-      to={multiSelect ? '#' : `/songs/${s.id}`}
-      onClick={(e) => {
-        if (multiSelect) e.preventDefault()
-      }}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: multiSelect ? 'auto 28px 1fr auto auto' : dragHandle ? 'auto 28px 1fr auto auto' : '28px 1fr auto auto',
-        alignItems: 'center',
-        gap: 6,
-        padding: '4px 10px',
-        textDecoration: 'none',
-        color: 'inherit',
-        borderBottom: '1px solid var(--border)',
-        fontSize: 13,
-      }}
-    >
+  const rowStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: multiSelect ? 'auto 28px 1fr auto auto' : dragHandle ? 'auto 28px 1fr auto auto' : '28px 1fr auto auto',
+    alignItems: 'center',
+    gap: 6,
+    padding: '4px 10px',
+    textDecoration: 'none',
+    color: 'inherit',
+    borderBottom: '1px solid var(--border)',
+    fontSize: 13,
+  }
+  const inner = (
+    <>
       {multiSelect && (
         <input
           type="checkbox"
@@ -645,6 +649,21 @@ function AlphaSongRow({
           ✕
         </button>
       </div>
+    </>
+  )
+  // 拖拽排序模式下用 div 而非 Link，避免 Link 拦截 drag 事件
+  if (dragHandle && !multiSelect) {
+    return <div style={rowStyle}>{inner}</div>
+  }
+  return (
+    <Link
+      to={multiSelect ? '#' : `/songs/${s.id}`}
+      onClick={(e) => {
+        if (multiSelect) e.preventDefault()
+      }}
+      style={rowStyle}
+    >
+      {inner}
     </Link>
   )
 }
