@@ -279,5 +279,17 @@ export const songsRepository = {
     return getDb()
       .prepare('SELECT id, title, artist, artist_normalized FROM songs')
       .all() as { id: string; title: string; artist: string | null; artist_normalized: string | null }[]
+  },
+
+  /** 批量更新歌曲排序顺序 */
+  reorder(items: { id: string; sortOrder: number }[]): void {
+    const db = getDb()
+    const stmt = db.prepare('UPDATE songs SET sort_order = ? WHERE id = ?')
+    const tx = db.transaction(() => {
+      for (const item of items) {
+        stmt.run(item.sortOrder, item.id)
+      }
+    })
+    tx()
   }
 }

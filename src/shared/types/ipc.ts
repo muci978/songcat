@@ -90,7 +90,8 @@ export const IPC = {
     update: 'library:update',
     delete: 'library:delete',
     touch: 'library:touch',
-    findOrCreate: 'library:findOrCreate'
+    findOrCreate: 'library:findOrCreate',
+    reorder: 'library:reorder'
   },
   assets: {
     list: 'assets:list',
@@ -321,6 +322,8 @@ export interface LibraryApi {
   touch(id: string): Promise<IpcResult<void>>
   /** 按标题+艺人查找；不存在则创建（搜索结果一键入库用） */
   findOrCreate(title: string, artist?: string | null): Promise<IpcResult<Song>>
+  /** 批量更新歌曲排序顺序 */
+  reorder(items: { id: string; sortOrder: number }[]): Promise<IpcResult<void>>
 }
 
 export interface AssetsApi {

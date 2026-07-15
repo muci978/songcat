@@ -50,6 +50,9 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.library.findOrCreate, (_e, title, artist) =>
     handle(() => libraryService.findOrCreateSongByTitleArtist(title, artist))
   )
+  ipcMain.handle(IPC.library.reorder, (_e, items: { id: string; sortOrder: number }[]) =>
+    handle(() => libraryService.reorderSongs(items))
+  )
 
   /* ---------------- assets ---------------- */
   ipcMain.handle(IPC.assets.list, (_e, songId) =>

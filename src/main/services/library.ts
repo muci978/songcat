@@ -68,6 +68,10 @@ export function findOrCreateSongByTitleArtist(
   return createSong({ title: normTitle, artist: normArtist })
 }
 
+export function reorderSongs(items: { id: string; sortOrder: number }[]): void {
+  songsRepository.reorder(items)
+}
+
 export function updateSong(id: string, input: UpdateSongInput): Song {
   const row = songsRepository.update(id, {
     title: input.title,

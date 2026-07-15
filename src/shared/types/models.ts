@@ -39,6 +39,7 @@ export interface SongRow {
   date_added: string
   date_updated: string
   last_opened_at: string | null
+  sort_order: number
 }
 
 export interface ScoreAssetRow {
@@ -146,6 +147,7 @@ export interface Song {
   dateAdded: string
   dateUpdated: string
   lastOpenedAt: string | null
+  sortOrder: number
 }
 
 /** 列表展示用的轻量歌曲（带聚合计数） */

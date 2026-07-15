@@ -1,5 +1,5 @@
 /** Library 页面：搜索、多维筛选、排序、首字母分组视图、卡片视图、批量删除 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { SongStatus, SongSummary } from '@shared'
 import type { SongSearchQuery } from '@shared'
@@ -16,13 +16,14 @@ const STATUS_OPTIONS: { value: SongStatus | ''; label: string }[] = [
   { value: 'learned', label: '已学会' }
 ]
 
-type SortBy = 'title' | 'artist' | 'dateAdded' | 'difficulty'
+type SortBy = 'title' | 'artist' | 'dateAdded' | 'difficulty' | 'custom'
 
 const SORT_OPTIONS: { value: SortBy; label: string }[] = [
   { value: 'title', label: '标题' },
   { value: 'artist', label: '歌手' },
   { value: 'dateAdded', label: '入库时间' },
-  { value: 'difficulty', label: '难度' }
+  { value: 'difficulty', label: '难度' },
+  { value: 'custom', label: '自定义' }
 ]
 
 /** 取一首歌的分组首字母（大写 A–Z 或 '#'） */
@@ -348,6 +349,8 @@ export default function Library(): React.ReactElement {
               selected={selected}
               onToggle={toggleSelect}
               onDelete={setSingleDelete}
+              sortable={sortBy === 'custom'}
+              onReorder={(items) => void unwrap(api.library.reorder(items))}
             />
           ) : (
             <div className="grid grid-auto">
@@ -477,16 +480,51 @@ function AlphaView({
   multiSelect,
   selected,
   onToggle,
-  onDelete
+  onDelete,
+  sortable,
+  onReorder
 }: {
   groups: [string, SongSummary[]][]
   multiSelect: boolean
   selected: Set<string>
   onToggle: (id: string) => void
   onDelete: (s: SongSummary) => void
+  sortable: boolean
+  onReorder: (items: { id: string; sortOrder: number }[]) => void
 }): React.ReactElement {
   // 根据屏幕宽度动态列数：窄屏1列，逐渐到最多4列
   const colCount = window.innerWidth < 640 ? 1 : window.innerWidth < 900 ? 2 : window.innerWidth < 1200 ? 3 : 4
+  const dragIndexRef = useRef<number | null>(null)
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    dragIndexRef.current = index
+    e.dataTransfer.effectAllowed = 'move'
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.4'
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = (e: React.DragEvent, list: SongSummary[], dropIndex: number) => {
+    e.preventDefault()
+    const from = dragIndexRef.current
+    if (from === null || from === dropIndex) return
+    const item = list.splice(from, 1)[0]
+    list.splice(dropIndex, 0, item)
+    onReorder(list.map((s, i) => ({ id: s.id, sortOrder: i })))
+    dragIndexRef.current = null
+  }
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1'
+    }
+    dragIndexRef.current = null
+  }
 
   return (
     <div style={{ columns: colCount, columnGap: 12 }}>
@@ -497,16 +535,26 @@ function AlphaView({
         >
           <Card style={{ padding: 0 }}>
             {list.map((s, i) => (
-              <AlphaSongRow
+              <div
                 key={s.id}
-                s={s}
-                showLetter={i === 0}
-                letter={letter}
-                multiSelect={multiSelect}
-                checked={selected.has(s.id)}
-                onToggle={onToggle}
-                onDelete={onDelete}
-              />
+                draggable={sortable}
+                onDragStart={sortable ? (e) => handleDragStart(e, i) : undefined}
+                onDragOver={sortable ? handleDragOver : undefined}
+                onDrop={sortable ? (e) => handleDrop(e, list, i) : undefined}
+                onDragEnd={sortable ? handleDragEnd : undefined}
+                style={sortable ? { cursor: 'grab' } : undefined}
+              >
+                <AlphaSongRow
+                  s={s}
+                  showLetter={i === 0}
+                  letter={letter}
+                  multiSelect={multiSelect}
+                  checked={selected.has(s.id)}
+                  onToggle={onToggle}
+                  onDelete={onDelete}
+                  dragHandle={sortable}
+                />
+              </div>
             ))}
           </Card>
         </div>
@@ -522,7 +570,8 @@ function AlphaSongRow({
   multiSelect,
   checked,
   onToggle,
-  onDelete
+  onDelete,
+  dragHandle
 }: {
   s: SongSummary
   showLetter: boolean
@@ -531,6 +580,7 @@ function AlphaSongRow({
   checked: boolean
   onToggle: (id: string) => void
   onDelete: (s: SongSummary) => void
+  dragHandle?: boolean
 }): React.ReactElement {
   const stopAndDelete = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -545,7 +595,7 @@ function AlphaSongRow({
       }}
       style={{
         display: 'grid',
-        gridTemplateColumns: multiSelect ? 'auto 28px 1fr auto auto' : '28px 1fr auto auto',
+        gridTemplateColumns: multiSelect ? 'auto 28px 1fr auto auto' : dragHandle ? 'auto 28px 1fr auto auto' : '28px 1fr auto auto',
         alignItems: 'center',
         gap: 6,
         padding: '4px 10px',
@@ -563,6 +613,9 @@ function AlphaSongRow({
           onChange={() => onToggle(s.id)}
           style={{ cursor: 'pointer' }}
         />
+      )}
+      {dragHandle && !multiSelect && (
+        <span style={{ cursor: 'grab', color: 'var(--text-faint)', fontSize: 14, userSelect: 'none' }}>⠿</span>
       )}
       <span
         style={{

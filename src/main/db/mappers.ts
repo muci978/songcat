@@ -37,7 +37,8 @@ export function rowToSong(r: SongRow): Song {
     originalAudioUrl: r.original_audio_url,
     dateAdded: r.date_added,
     dateUpdated: r.date_updated,
-    lastOpenedAt: r.last_opened_at
+    lastOpenedAt: r.last_opened_at,
+    sortOrder: r.sort_order ?? 0
   }
 }
 

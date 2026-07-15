@@ -80,6 +80,15 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_goals_date ON practice_goals(date);
       `)
     }
+  },
+  {
+    version: 5,
+    run: (db) => {
+      db.exec(`
+        ALTER TABLE songs ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS idx_songs_sort_order ON songs(sort_order);
+      `)
+    }
   }
 ]
 
