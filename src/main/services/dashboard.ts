@@ -63,6 +63,9 @@ export function getStats(): DashboardStats {
     secondsToday: todayMap.get(r.song_id) ?? 0
   }))
 
+  // 连续练习天数 streak
+  const streakDays = calculateStreak(sessions, now)
+
   return {
     totalSongs: totals.total,
     toLearnCount: totals.to_learn,
@@ -77,6 +80,51 @@ export function getStats(): DashboardStats {
     trendByYear: agg.trendByYear,
     todayBySong: agg.todayBySong,
     byArtist: agg.byArtist,
-    recentPractice
+    recentPractice,
+    streakDays
   }
+}
+
+/** 计算连续练习天数。今天还没练习不算断（如果今天还没结束）。 */
+function calculateStreak(
+  sessions: { startedAt: string; durationSeconds: number }[],
+  now: Date
+): number {
+  if (sessions.length === 0) return 0
+
+  // 按本地日期分组，得到有练习的日期集合
+  const practicedDates = new Set<string>()
+  for (const s of sessions) {
+    if (s.durationSeconds > 0) {
+      const d = new Date(s.startedAt)
+      // 转为本地日期字符串 YYYY-MM-DD
+      const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      practicedDates.add(localDate)
+    }
+  }
+  if (practicedDates.size === 0) return 0
+
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+  // 从今天或昨天开始往前计数
+  let startCheck = todayStr
+  if (!practicedDates.has(todayStr)) {
+    // 今天还没练习，从昨天开始检查
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    startCheck = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+  }
+
+  let streak = 0
+  const current = new Date(startCheck + 'T12:00:00')
+  while (true) {
+    const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+    if (practicedDates.has(dateStr)) {
+      streak++
+      current.setDate(current.getDate() - 1)
+    } else {
+      break
+    }
+  }
+  return streak
 }

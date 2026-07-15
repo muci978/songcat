@@ -324,6 +324,8 @@ export interface DashboardStats {
     lastPracticedAt: string
     secondsToday: number
   }[]
+  /** 连续练习天数 */
+  streakDays: number
 }
 
 /** 健康检查报告（见设计 §15.3） */

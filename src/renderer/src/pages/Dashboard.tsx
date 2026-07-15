@@ -145,6 +145,7 @@ export default function Dashboard(): React.ReactElement {
         <StatCard label="今日练习" value={minutesLabel(stats.todayPracticeSeconds)} colorIndex={5} />
         <StatCard label="本月练习" value={minutesLabel(stats.monthPracticeSeconds)} colorIndex={6} />
         <StatCard label="今年练习" value={minutesLabel(stats.yearPracticeSeconds)} colorIndex={7} />
+        <StatCard label="🔥 连续" value={`${stats.streakDays} 天`} colorIndex={0} />
       </div>
 
       {/* 今日练习目标 */}
