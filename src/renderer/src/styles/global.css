@@ -471,6 +471,7 @@ h3 {
   justify-content: center;
   z-index: 100;
   padding: var(--space-5);
+  will-change: backdrop-filter;
 }
 .modal {
   background: var(--bg-elevated);

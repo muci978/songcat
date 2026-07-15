@@ -65,8 +65,8 @@ export function Modal({
 }): React.ReactElement | null {
   if (!open) return null
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: width }} onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal" style={{ maxWidth: width }} onMouseDown={(e) => e.stopPropagation()}>
         {title && (
           <div className="modal-header">
             <h2>{title}</h2>
