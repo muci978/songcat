@@ -495,24 +495,30 @@ export default function Practice(): React.ReactElement {
           {/* 录音 */}
           <Card title="录音">
             {recording ? (
-              <div className="row-between" style={{ alignItems: 'center' }}>
-                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      background: 'var(--accent)',
-                      animation: 'pulse 1s infinite'
-                    }}
-                  />
-                  <span style={{ fontWeight: 600 }}>正在录音…</span>
+              <div>
+                <div className="row-between" style={{ alignItems: 'center' }}>
+                  <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        background: 'var(--accent)',
+                        animation: 'pulse 1s infinite'
+                      }}
+                    />
+                    <span style={{ fontWeight: 600 }}>正在录音…</span>
+                  </div>
+                  <button className="btn btn-danger" onClick={handleStopRecording}>
+                    停止
+                  </button>
                 </div>
-                {streamRef.current && <AudioWaveform stream={streamRef.current} />}
-                <button className="btn btn-danger" onClick={handleStopRecording}>
-                  停止
-                </button>
+                {streamRef.current && (
+                  <div style={{ marginTop: 10 }}>
+                    <AudioWaveform stream={streamRef.current} />
+                  </div>
+                )}
               </div>
             ) : detail.recording ? (
               <div>
