@@ -250,7 +250,7 @@ export default function Dashboard(): React.ReactElement {
                     nameKey="name"
                     outerRadius={120}
                     innerRadius={50}
-                    paddingAngle={2}
+                    paddingAngle={0}
                     stroke="#ffffff"
                     strokeWidth={2}
                     activeShape={false}
@@ -295,7 +295,7 @@ export default function Dashboard(): React.ReactElement {
                     nameKey="name"
                     outerRadius={120}
                     innerRadius={50}
-                    paddingAngle={2}
+                    paddingAngle={0}
                     stroke="#ffffff"
                     strokeWidth={2}
                     activeShape={false}
@@ -340,7 +340,7 @@ export default function Dashboard(): React.ReactElement {
                     nameKey="name"
                     outerRadius={120}
                     innerRadius={50}
-                    paddingAngle={2}
+                    paddingAngle={0}
                     stroke="#ffffff"
                     strokeWidth={2}
                     activeShape={false}
