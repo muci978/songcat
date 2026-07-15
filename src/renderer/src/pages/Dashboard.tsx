@@ -136,7 +136,7 @@ export default function Dashboard(): React.ReactElement {
           ))}
         </div>
       }>
-        <div style={{ height: 260 }}>
+        <div style={{ height: 260 }} onPointerDown={(e) => e.preventDefault()}>
           {trendPeriod === 'day' ? (
             trendDataDay.some((d) => d.minutes > 0) ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -240,7 +240,7 @@ export default function Dashboard(): React.ReactElement {
       {/* 饼图区域 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginTop: 28 }}>
         <Card title="今日各歌曲练习占比">
-          <div style={{ height: 300 }}>
+          <div style={{ height: 300 }} onPointerDown={(e) => e.preventDefault()}>
             {todaySongData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -285,7 +285,7 @@ export default function Dashboard(): React.ReactElement {
         </Card>
 
         <Card title="今日艺人练习占比">
-          <div style={{ height: 300 }}>
+          <div style={{ height: 300 }} onPointerDown={(e) => e.preventDefault()}>
             {todayArtistData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -330,7 +330,7 @@ export default function Dashboard(): React.ReactElement {
         </Card>
 
         <Card title="全部艺人练习占比">
-          <div style={{ height: 300 }}>
+          <div style={{ height: 300 }} onPointerDown={(e) => e.preventDefault()}>
             {allArtistData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

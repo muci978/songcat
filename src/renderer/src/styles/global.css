@@ -593,12 +593,11 @@ h3 {
   box-shadow: var(--shadow-glow);
 }
 
-/* 隐藏 Recharts 图表点击时的 active 高亮方框 */
-.recharts-active-dot,
-.recharts-bar-rectangle[fill-opacity],
-.recharts-pie-sector[fill-opacity] {
+/* 隐藏 Recharts 图表点击时的高亮方框 */
+.recharts-wrapper *:focus {
   outline: none !important;
+  box-shadow: none !important;
 }
-.recharts-wrapper .recharts-surface {
-  cursor: default !important;
+.recharts-wrapper * {
+  -webkit-tap-highlight-color: transparent;
 }
