@@ -12,6 +12,7 @@ import {
 import { rowToPracticeSession, rowToSourceLink } from '../db/mappers'
 import type {
   CreateSongInput,
+  PaginatedResult,
   Song,
   SongDetail,
   SongSearchQuery,
@@ -22,7 +23,7 @@ import { getSongDir } from '../lib/paths'
 import { logger } from '../lib/logger'
 import { notFound } from './errors'
 
-export function searchSongs(q: SongSearchQuery = {}): SongSummary[] {
+export function searchSongs(q: SongSearchQuery = {}): PaginatedResult<SongSummary> {
   return songsRepository.search(q)
 }
 
@@ -56,7 +57,7 @@ export function findOrCreateSongByTitleArtist(
   const candidates = songsRepository.search({ text: normTitle, limit: 100 })
   const t = normTitle.toLowerCase()
   const a = normArtist?.toLowerCase() ?? null
-  for (const c of candidates) {
+  for (const c of candidates.items) {
     if (c.title.trim().toLowerCase() !== t) continue
     const ca = c.artist?.trim().toLowerCase() ?? null
     if (ca === a) {

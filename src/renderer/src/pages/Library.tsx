@@ -7,6 +7,7 @@ import { api, unwrap } from '../lib/api'
 import { formatSeconds, truncate } from '../lib/format'
 import { toast } from '../stores/toast'
 import { Card, ConfirmDialog, Empty, Spinner, Stars, StatusBadge } from '../components/ui'
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll'
 
 const STATUS_OPTIONS: { value: SongStatus | ''; label: string }[] = [
   { value: '', label: '全部状态' },
@@ -40,7 +41,11 @@ function cmpStr(a: string, b: string): number {
 
 export default function Library(): React.ReactElement {
   const [songs, setSongs] = useState<SongSummary[]>([])
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
   const [loading, setLoading] = useState(true)
+  const PAGE_SIZE = 50
+  const hasMore = songs.length < total
   const [text, setText] = useState('')
   const [status, setStatus] = useState<SongStatus | ''>('')
   const [favOnly, setFavOnly] = useState(false)
@@ -69,15 +74,48 @@ export default function Library(): React.ReactElement {
         hasRecording: hasRecording || undefined,
         hasPractice: hasPractice || undefined,
         dateSort: 'newest',
-        limit: 2000
+        limit: PAGE_SIZE,
+        offset: 0
       }
-      setSongs(await unwrap(api.library.search(q)))
+      const result = await unwrap(api.library.search(q))
+      setSongs(result.items)
+      setTotal(result.total)
+      setOffset(0)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
       setLoading(false)
     }
   }, [text, status, favOnly, hasPdf, hasRecording, hasPractice])
+
+  const loadMore = useCallback(async () => {
+    if (loading || !hasMore) return
+    setLoading(true)
+    try {
+      const nextOffset = offset + PAGE_SIZE
+      const q: SongSearchQuery = {
+        text: text.trim() || undefined,
+        status: (status || undefined) as SongStatus | undefined,
+        isFavorite: favOnly || undefined,
+        hasPdf: hasPdf || undefined,
+        hasRecording: hasRecording || undefined,
+        hasPractice: hasPractice || undefined,
+        dateSort: 'newest',
+        limit: PAGE_SIZE,
+        offset: nextOffset
+      }
+      const result = await unwrap(api.library.search(q))
+      setSongs(prev => [...prev, ...result.items])
+      setTotal(result.total)
+      setOffset(nextOffset)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [offset, hasMore, loading, text, status, favOnly, hasPdf, hasRecording, hasPractice])
+
+  const { sentinelRef } = useInfiniteScroll({ hasMore, isLoading: loading, onLoadMore: loadMore })
 
   useEffect(() => {
     const t = setTimeout(() => void reload(), 200)
@@ -326,6 +364,15 @@ export default function Library(): React.ReactElement {
             </div>
           )}
         </>
+      )}
+
+      {/* 无限滚动哨兵 & 状态 */}
+      {!loading && songs.length > 0 && hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
+      {loading && songs.length > 0 && <div style={{ textAlign: 'center', padding: 16 }}><Spinner /></div>}
+      {!loading && !hasMore && songs.length > 0 && (
+        <div className="faint" style={{ textAlign: 'center', padding: 16, fontSize: 13 }}>
+          已加载全部 {total} 首歌曲
+        </div>
       )}
 
       <ConfirmDialog

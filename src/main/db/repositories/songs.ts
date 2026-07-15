@@ -9,6 +9,7 @@ import { getDb } from '../connection'
 import { rowToSong, rowToSongSummary, type SongSummaryRow } from '../mappers'
 import type {
   Difficulty,
+  PaginatedResult,
   Song,
   SongRow,
   SongSearchQuery,
@@ -43,7 +44,8 @@ export interface SongPatch {
   originalAudioUrl?: string | null
 }
 
-/** 列表查询所需的聚合子选择（score 数 / pdf / 录音 / 练习 / 总时长 / 最近练习） */
+/** 列表查询所需的聚合子选择（score 数 / pdf / 录音 / 练习 / 总时长 / 最近练习）
+ *  单行查询（getSummaryById）仍用内联子查询；search() 使用 LEFT JOIN 聚合提升性能 */
 const SUMMARY_COLUMNS = `
   (SELECT COUNT(*) FROM score_assets a WHERE a.song_id = s.id) AS score_count,
   EXISTS(SELECT 1 FROM score_assets a WHERE a.song_id = s.id AND a.type = 'pdf') AS has_pdf,
@@ -51,6 +53,90 @@ const SUMMARY_COLUMNS = `
   EXISTS(SELECT 1 FROM practice_sessions p WHERE p.song_id = s.id) AS has_practice,
   COALESCE((SELECT SUM(p2.duration_seconds) FROM practice_sessions p2 WHERE p2.song_id = s.id), 0) AS total_practice_seconds,
   (SELECT MAX(p3.started_at) FROM practice_sessions p3 WHERE p3.song_id = s.id) AS last_practiced_at
+`
+
+/** 构建 WHERE 子句（search 和 searchCount 共用） */
+function buildWhereClause(q: SongSearchQuery): { whereSql: string; params: Record<string, unknown> } {
+  const where: string[] = []
+  const params: Record<string, unknown> = {}
+
+  if (q.text) {
+    const t = q.text.trim()
+    where.push(
+      `(LOWER(s.title) LIKE @text
+        OR LOWER(COALESCE(s.artist, '')) LIKE @text
+        OR LOWER(COALESCE(s.notes, '')) LIKE @text
+        OR s.title_pinyin_initial LIKE @pinyin)`
+    )
+    params.text = `%${t.toLowerCase()}%`
+    params.pinyin = `${t.toUpperCase()}%`
+  }
+  if (q.status) {
+    where.push('s.status = @status')
+    params.status = q.status
+  }
+  if (q.isFavorite !== undefined) {
+    where.push('s.is_favorite = @fav')
+    params.fav = q.isFavorite ? 1 : 0
+  }
+  if (q.artist) {
+    where.push("(s.artist_normalized LIKE @artistNorm OR LOWER(COALESCE(s.artist,'')) LIKE @artistRaw)")
+    params.artistNorm = `%${normalizeArtist(q.artist) ?? ''}%`
+    params.artistRaw = `%${q.artist.toLowerCase()}%`
+  }
+  if (q.minDifficulty !== undefined) {
+    where.push('s.difficulty >= @minD')
+    params.minD = q.minDifficulty
+  }
+  if (q.maxDifficulty !== undefined) {
+    where.push('s.difficulty <= @maxD')
+    params.maxD = q.maxDifficulty
+  }
+  if (q.initial) {
+    where.push('s.title_pinyin_initial LIKE @initial')
+    params.initial = `${q.initial.toUpperCase()}%`
+  }
+  if (q.hasPdf) {
+    where.push('a.score_count > 0')
+  }
+  if (q.hasRecording) {
+    where.push('r.has_recording = 1')
+  }
+  if (q.hasPractice) {
+    where.push('p.has_practice = 1')
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  return { whereSql, params }
+}
+
+/** LEFT JOIN 聚合子查询（search 用，比相关子查询高效） */
+const JOIN_AGGREGATES = `
+  LEFT JOIN (
+    SELECT song_id,
+      COUNT(*) AS score_count,
+      MAX(CASE WHEN type = 'pdf' THEN 1 ELSE 0 END) AS has_pdf
+    FROM score_assets GROUP BY song_id
+  ) a ON a.song_id = s.id
+  LEFT JOIN (
+    SELECT song_id, 1 AS has_recording FROM recordings GROUP BY song_id
+  ) r ON r.song_id = s.id
+  LEFT JOIN (
+    SELECT song_id,
+      1 AS has_practice,
+      SUM(duration_seconds) AS total_practice_seconds,
+      MAX(started_at) AS last_practiced_at
+    FROM practice_sessions GROUP BY song_id
+  ) p ON p.song_id = s.id
+`
+
+const AGGREGATE_COLUMNS = `
+  COALESCE(a.score_count, 0) AS score_count,
+  COALESCE(a.has_pdf, 0) AS has_pdf,
+  COALESCE(r.has_recording, 0) AS has_recording,
+  COALESCE(p.has_practice, 0) AS has_practice,
+  COALESCE(p.total_practice_seconds, 0) AS total_practice_seconds,
+  p.last_practiced_at
 `
 
 export const songsRepository = {
@@ -75,67 +161,30 @@ export const songsRepository = {
     return row ? rowToSong(row) : undefined
   },
 
-  search(q: SongSearchQuery = {}): SongSummary[] {
+  search(q: SongSearchQuery = {}): PaginatedResult<SongSummary> {
     const db = getDb()
-    const where: string[] = []
-    const params: Record<string, unknown> = {}
-
-    if (q.text) {
-      const t = q.text.trim()
-      where.push(
-        `(LOWER(s.title) LIKE @text
-          OR LOWER(COALESCE(s.artist, '')) LIKE @text
-          OR LOWER(COALESCE(s.notes, '')) LIKE @text
-          OR s.title_pinyin_initial LIKE @pinyin)`
-      )
-      params.text = `%${t.toLowerCase()}%`
-      params.pinyin = `${t.toUpperCase()}%`
-    }
-    if (q.status) {
-      where.push('s.status = @status')
-      params.status = q.status
-    }
-    if (q.isFavorite !== undefined) {
-      where.push('s.is_favorite = @fav')
-      params.fav = q.isFavorite ? 1 : 0
-    }
-    if (q.artist) {
-      where.push("(s.artist_normalized LIKE @artistNorm OR LOWER(COALESCE(s.artist,'')) LIKE @artistRaw)")
-      params.artistNorm = `%${normalizeArtist(q.artist) ?? ''}%`
-      params.artistRaw = `%${q.artist.toLowerCase()}%`
-    }
-    if (q.minDifficulty !== undefined) {
-      where.push('s.difficulty >= @minD')
-      params.minD = q.minDifficulty
-    }
-    if (q.maxDifficulty !== undefined) {
-      where.push('s.difficulty <= @maxD')
-      params.maxD = q.maxDifficulty
-    }
-    if (q.initial) {
-      where.push('s.title_pinyin_initial LIKE @initial')
-      params.initial = `${q.initial.toUpperCase()}%`
-    }
-    if (q.hasPdf) {
-      // 「有曲谱」= 有任何 score_asset（含 guistudy 的 link 型、本地 pdf/image 等），不只 pdf
-      where.push('EXISTS(SELECT 1 FROM score_assets a WHERE a.song_id = s.id)')
-    }
-    if (q.hasRecording) {
-      where.push('EXISTS(SELECT 1 FROM recordings r WHERE r.song_id = s.id)')
-    }
-    if (q.hasPractice) {
-      where.push('EXISTS(SELECT 1 FROM practice_sessions p WHERE p.song_id = s.id)')
-    }
-
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const { whereSql, params } = buildWhereClause(q)
     const orderSql =
       q.dateSort === 'oldest' ? 'ORDER BY s.date_added ASC, s.id ASC' : 'ORDER BY s.date_added DESC, s.id DESC'
-    params.limit = q.limit ?? 1000
-    params.offset = q.offset ?? 0
+    const limit = q.limit ?? 1000
+    const offset = q.offset ?? 0
 
-    const sql = `SELECT s.*, ${SUMMARY_COLUMNS} FROM songs s ${whereSql} ${orderSql} LIMIT @limit OFFSET @offset`
-    const rows = db.prepare(sql).all(params) as SongSummaryRow[]
-    return rows.map(rowToSongSummary)
+    // 总数
+    const countSql = `SELECT COUNT(*) AS total FROM songs s ${JOIN_AGGREGATES} ${whereSql}`
+    const total = (db.prepare(countSql).get(params) as { total: number }).total
+
+    // 分页数据
+    params.limit = limit
+    params.offset = offset
+    const dataSql = `SELECT s.*, ${AGGREGATE_COLUMNS} FROM songs s ${JOIN_AGGREGATES} ${whereSql} ${orderSql} LIMIT @limit OFFSET @offset`
+    const rows = db.prepare(dataSql).all(params) as SongSummaryRow[]
+
+    return {
+      items: rows.map(rowToSongSummary),
+      total,
+      limit,
+      offset
+    }
   },
 
   create(rec: NewSongRecord): SongRow {

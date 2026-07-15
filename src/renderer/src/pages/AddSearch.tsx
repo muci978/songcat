@@ -66,7 +66,7 @@ function useSongList(): { songs: SongSummary[]; loading: boolean } {
     void (async () => {
       try {
         const list = await unwrap(api.library.search({ limit: 1000 }))
-        setSongs(list)
+        setSongs(list.items)
       } catch (e) {
         toast.error((e as Error).message)
       } finally {

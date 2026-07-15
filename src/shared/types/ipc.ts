@@ -69,6 +69,14 @@ export const fail = (code: ErrorCode, message: string, details?: unknown): IpcEr
   details
 })
 
+/** 分页结果 */
+export interface PaginatedResult<T> {
+  items: T[]
+  total: number
+  limit: number
+  offset: number
+}
+
 /* ------------------------------------------------------------------ */
 /* channel 名称常量                                                      */
 /* ------------------------------------------------------------------ */
@@ -299,7 +307,7 @@ export interface PathInfo {
 /* ------------------------------------------------------------------ */
 
 export interface LibraryApi {
-  search(q: SongSearchQuery): Promise<IpcResult<SongSummary[]>>
+  search(q: SongSearchQuery): Promise<IpcResult<PaginatedResult<SongSummary>>>
   getSong(id: string): Promise<IpcResult<SongDetail>>
   create(input: CreateSongInput): Promise<IpcResult<Song>>
   update(id: string, input: UpdateSongInput): Promise<IpcResult<Song>>
