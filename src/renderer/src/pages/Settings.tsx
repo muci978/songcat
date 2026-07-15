@@ -904,6 +904,10 @@ function HealthReportModal({
             <ReportStat label="未完成下载" value={report.unfinishedDownloads.length} warn />
             <ReportStat label="未结束练习" value={report.unfinishedPracticeSessions.length} warn />
             <ReportStat label="孤立临时文件" value={report.orphanTempFiles.length} warn />
+            <ReportStat label="数据库完整性" value={report.dbIntegrityOk ? 0 : 1} danger />
+            <ReportStat label="外键违反" value={report.foreignKeyViolations.length} danger />
+            <ReportStat label="孤立歌曲目录" value={report.orphanSongDirs.length} warn />
+            <ReportStat label="孤立曲谱文件" value={report.orphanScoreFiles.length} warn />
           </div>
 
           {report.missingScoreFiles.length > 0 && (
@@ -944,6 +948,43 @@ function HealthReportModal({
             <ReportList title={`孤立临时文件（${report.orphanTempFiles.length}）`}>
               {report.orphanTempFiles.map((f, i) => (
                 <li key={`${i}-${f}`} className="faint" style={{ wordBreak: 'break-all' }}>
+                  {f}
+                </li>
+              ))}
+            </ReportList>
+          )}
+
+          {!report.dbIntegrityOk && (
+            <ReportList title={`数据库完整性检查失败`}>
+              {report.dbIntegrityErrors.map((e, i) => (
+                <li key={i} className="faint" style={{ wordBreak: 'break-all' }}>
+                  {e}
+                </li>
+              ))}
+            </ReportList>
+          )}
+          {report.foreignKeyViolations.length > 0 && (
+            <ReportList title={`外键违反（${report.foreignKeyViolations.length}）`}>
+              {report.foreignKeyViolations.map((v, i) => (
+                <li key={i} className="faint">
+                  表 {v.table} 行 {v.rowid} → 引用 {v.parent}（FK ID {v.fkid}）
+                </li>
+              ))}
+            </ReportList>
+          )}
+          {report.orphanSongDirs.length > 0 && (
+            <ReportList title={`孤立歌曲目录（${report.orphanSongDirs.length}）`}>
+              {report.orphanSongDirs.map((d, i) => (
+                <li key={i} className="faint" style={{ wordBreak: 'break-all' }}>
+                  {d}
+                </li>
+              ))}
+            </ReportList>
+          )}
+          {report.orphanScoreFiles.length > 0 && (
+            <ReportList title={`孤立曲谱文件（${report.orphanScoreFiles.length}）`}>
+              {report.orphanScoreFiles.map((f, i) => (
+                <li key={i} className="faint" style={{ wordBreak: 'break-all' }}>
                   {f}
                 </li>
               ))}

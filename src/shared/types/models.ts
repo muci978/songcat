@@ -326,4 +326,14 @@ export interface HealthReport {
   orphanTempFiles: string[]
   /** 已执行的恢复/清理动作摘要 */
   recovered: string[]
+  /** PRAGMA integrity_check 是否通过 */
+  dbIntegrityOk: boolean
+  /** integrity_check 错误详情（通过时为空） */
+  dbIntegrityErrors: string[]
+  /** 外键违反记录 */
+  foreignKeyViolations: { table: string; rowid: number; parent: string; fkid: number }[]
+  /** 无对应 DB 记录的歌曲目录 */
+  orphanSongDirs: string[]
+  /** 无对应 DB 记录的曲谱文件 */
+  orphanScoreFiles: string[]
 }
