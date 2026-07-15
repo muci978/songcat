@@ -356,6 +356,7 @@ function SourcesCard({
       />
 
       <EditSourceModal
+        key={editTarget?.id ?? 'none'}
         source={editTarget}
         onClose={() => setEditTarget(null)}
         onSaved={() => void reload()}
