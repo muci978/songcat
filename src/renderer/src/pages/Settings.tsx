@@ -290,6 +290,7 @@ function SourcesCard({
   reload: () => Promise<void>
 }): React.ReactElement {
   const [showCreate, setShowCreate] = useState(false)
+  const [editTarget, setEditTarget] = useState<ResourceSource | null>(null)
   const [removeTarget, setRemoveTarget] = useState<ResourceSource | null>(null)
   const toggleAction = useAsyncAction()
   const removeAction = useAsyncAction()
@@ -334,6 +335,9 @@ function SourcesCard({
                   })
                 }
               />
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditTarget(s)}>
+                编辑
+              </button>
               <button className="btn btn-ghost btn-sm" onClick={() => setRemoveTarget(s)}>
                 删除
               </button>
@@ -346,6 +350,12 @@ function SourcesCard({
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onCreated={() => void reload()}
+      />
+
+      <EditSourceModal
+        source={editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={() => void reload()}
       />
 
       <ConfirmDialog
@@ -872,6 +882,107 @@ function AboutCard({
 /* ------------------------------------------------------------------ */
 /* 健康检查报告 Modal                                                    */
 /* ------------------------------------------------------------------ */
+
+function EditSourceModal({
+  source,
+  onClose,
+  onSaved
+}: {
+  source: ResourceSource | null
+  onClose: () => void
+  onSaved: () => void
+}): React.ReactElement {
+  const [name, setName] = useState(source?.name ?? '')
+  const [baseUrl, setBaseUrl] = useState(source?.baseUrl ?? '')
+  const [searchUrlTemplate, setSearchUrlTemplate] = useState(source?.searchUrlTemplate ?? '')
+  const [kind, setKind] = useState<ResourceSourceKind>(source?.kind ?? 'score')
+  const [policy, setPolicy] = useState<ResourceSourcePolicy>(source?.policy ?? 'link-only')
+  const [notes, setNotes] = useState(source?.notes ?? '')
+  const action = useAsyncAction()
+
+  const submit = () =>
+    action.run(async () => {
+      if (!source) return
+      if (!name.trim()) throw new Error('请输入来源名称')
+      await unwrap(
+        api.sources.update({
+          id: source.id,
+          name: name.trim(),
+          baseUrl: baseUrl.trim() || null,
+          searchUrlTemplate: searchUrlTemplate.trim() || null,
+          kind,
+          policy,
+          notes: notes.trim() || null
+        })
+      )
+      toast.success('已保存修改')
+      onSaved()
+    }, '已保存修改')
+
+  return (
+    <Modal
+      open={!!source}
+      title="编辑来源"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            取消
+          </button>
+          <button className="btn btn-primary" disabled={action.loading} onClick={submit}>
+            {action.loading ? '保存中…' : '保存'}
+          </button>
+        </>
+      }
+    >
+      <div className="field">
+        <label className="label">名称 *</label>
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+      </div>
+      <div className="field">
+        <label className="label">Base URL</label>
+        <input
+          className="input"
+          placeholder="https://example.com"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label className="label">搜索 URL 模板</label>
+        <input
+          className="input"
+          placeholder="https://example.com/search?q={q}"
+          value={searchUrlTemplate}
+          onChange={(e) => setSearchUrlTemplate(e.target.value)}
+        />
+        <div className="hint">用 {`{q}`} 作为关键词占位符。</div>
+      </div>
+      <div className="row" style={{ gap: 16, marginBottom: 12 }}>
+        <div className="field grow" style={{ margin: 0 }}>
+          <label className="label">类型</label>
+          <select className="select" value={kind} onChange={(e) => setKind(e.target.value as ResourceSourceKind)}>
+            <option value="score">曲谱</option>
+            <option value="audio">音频</option>
+            <option value="mixed">混合</option>
+          </select>
+        </div>
+        <div className="field grow" style={{ margin: 0 }}>
+          <label className="label">下载策略</label>
+          <select className="select" value={policy} onChange={(e) => setPolicy(e.target.value as ResourceSourcePolicy)}>
+            <option value="direct-download">直接下载</option>
+            <option value="link-only">仅链接</option>
+            <option value="browser-only">仅浏览器</option>
+          </select>
+        </div>
+      </div>
+      <div className="field">
+        <label className="label">备注</label>
+        <textarea className="textarea" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+    </Modal>
+  )
+}
 
 function HealthReportModal({
   open,
