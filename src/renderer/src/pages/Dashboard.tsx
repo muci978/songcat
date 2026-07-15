@@ -13,11 +13,12 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import type { DashboardStats } from '@shared'
+import type { DashboardStats, PracticeGoal } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { formatDate, formatSeconds, minutesLabel, truncate } from '../lib/format'
 import { Card, Empty, Spinner } from '../components/ui'
 import { useTheme } from '../hooks/useTheme'
+import { GoalProgress } from '../components/GoalProgress'
 
 /** 根据主题返回图表配色 */
 function getChartColors(isDark: boolean) {
@@ -73,6 +74,7 @@ const STAT_COLORS = [
 
 export default function Dashboard(): React.ReactElement {
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [goal, setGoal] = useState<PracticeGoal | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [trendPeriod, setTrendPeriod] = useState<'day' | 'month' | 'year'>('day')
@@ -82,7 +84,12 @@ export default function Dashboard(): React.ReactElement {
   useEffect(() => {
     void (async () => {
       try {
-        setStats(await unwrap(api.dashboard.getStats()))
+        const [s, g] = await Promise.all([
+          unwrap(api.dashboard.getStats()),
+          unwrap(api.goals.getToday())
+        ])
+        setStats(s)
+        setGoal(g)
       } catch (e) {
         setError((e as Error).message)
       } finally {
@@ -139,6 +146,13 @@ export default function Dashboard(): React.ReactElement {
         <StatCard label="本月练习" value={minutesLabel(stats.monthPracticeSeconds)} colorIndex={6} />
         <StatCard label="今年练习" value={minutesLabel(stats.yearPracticeSeconds)} colorIndex={7} />
       </div>
+
+      {/* 今日练习目标 */}
+      {goal && (
+        <Card title="今日练习目标" style={{ marginBottom: 28 }}>
+          <GoalProgress goal={goal} practicedSeconds={stats?.todayPracticeSeconds ?? 0} />
+        </Card>
+      )}
 
       {/* 趋势图 */}
       <Card title="练习时间趋势" className="grid" actions={

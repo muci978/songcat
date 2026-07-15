@@ -72,6 +72,10 @@ const api: SongCatApi = {
   health: {
     runCheck: () => ipcRenderer.invoke(IPC.health.runCheck)
   },
+  goals: {
+    getToday: () => ipcRenderer.invoke(IPC.goals.getToday),
+    setToday: (targetSeconds: number) => ipcRenderer.invoke(IPC.goals.setToday, targetSeconds)
+  },
   updater: {
     checkForUpdate: () => ipcRenderer.invoke(IPC.updater.checkForUpdate)
   },

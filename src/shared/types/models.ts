@@ -287,6 +287,15 @@ export interface AiCandidate {
   notes: string
 }
 
+/** 练习目标（每天一条） */
+export interface PracticeGoal {
+  id: string
+  targetSeconds: number
+  date: string
+  createdAt: string
+  updatedAt: string
+}
+
 /** Dashboard 统计（见设计 §12） */
 export interface DashboardStats {
   totalSongs: number

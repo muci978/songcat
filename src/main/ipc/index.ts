@@ -19,6 +19,7 @@ import * as dashboardService from '../services/dashboard'
 import * as settingsService from '../services/settings'
 import * as backupService from '../services/backup'
 import * as healthService from '../services/health'
+import * as goalService from '../services/goal'
 import * as updaterService from '../services/updater'
 
 async function handle<T>(fn: () => T | Promise<T>): Promise<IpcResult<T>> {
@@ -160,6 +161,10 @@ export function registerIpc(): void {
 
   /* ---------------- health ---------------- */
   ipcMain.handle(IPC.health.runCheck, () => handle(() => healthService.runHealthCheck()))
+
+  /* ---------------- goals ---------------- */
+  ipcMain.handle(IPC.goals.getToday, () => handle(() => goalService.getTodayGoal()))
+  ipcMain.handle(IPC.goals.setToday, (_e, targetSeconds: number) => handle(() => goalService.setTodayGoal(targetSeconds)))
 
   /* ---------------- updater ---------------- */
   ipcMain.handle(IPC.updater.checkForUpdate, () => handle(() => updaterService.checkForUpdate()))

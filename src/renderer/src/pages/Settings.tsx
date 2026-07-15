@@ -97,6 +97,9 @@ export default function Settings(): React.ReactElement {
       {/* 5. 外观 */}
       <AppearanceCard settings={settings} update={update} />
 
+      {/* 6. 练习目标 */}
+      <GoalSettingCard />
+
       {/* 6. 关于 */}
       <AboutCard
         appVersion={appVersion}
@@ -757,6 +760,56 @@ function DeepSeekCard({
 /* ------------------------------------------------------------------ */
 /* 5. 外观                                                              */
 /* ------------------------------------------------------------------ */
+
+function GoalSettingCard(): React.ReactElement {
+  const [goal, setGoal] = useState<{ targetSeconds: number } | null>(null)
+  const [minutes, setMinutes] = useState(30)
+  const [saved, setSaved] = useState(false)
+  const action = useAsyncAction()
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const g = await unwrap(api.goals.getToday())
+        setGoal(g)
+        setMinutes(Math.round(g.targetSeconds / 60))
+      } catch { /* ignore */ }
+    })()
+  }, [])
+
+  const save = () =>
+    action.run(async () => {
+      const sec = Math.max(1, minutes) * 60
+      await unwrap(api.goals.setToday(sec))
+      setGoal({ targetSeconds: sec })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    }, '已保存')
+
+  return (
+    <Card title="练习目标" style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
+      <div className="field">
+        <label className="label">每日练习目标（分钟）</label>
+        <div className="row" style={{ gap: 8 }}>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={480}
+            value={minutes}
+            onChange={(e) => setMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+            style={{ width: 100 }}
+          />
+          <button className="btn btn-primary btn-sm" disabled={action.loading} onClick={save}>
+            {action.loading ? '保存中…' : '保存'}
+          </button>
+          {saved && <span style={{ color: 'var(--success)', fontSize: 13 }}>已保存</span>}
+        </div>
+        <div className="hint">设定每天的练习时间目标，Dashboard 会展示进度</div>
+      </div>
+    </Card>
+  )
+}
 
 function AppearanceCard({
   settings,

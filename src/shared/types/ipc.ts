@@ -16,6 +16,7 @@ import type {
   DownloadJob,
   FreeSourceSearchResult,
   HealthReport,
+  PracticeGoal,
   Recording,
   ResourceSource,
   ScoreAsset,
@@ -146,6 +147,10 @@ export const IPC = {
   },
   health: {
     runCheck: 'health:runCheck'
+  },
+  goals: {
+    getToday: 'goals:getToday',
+    setToday: 'goals:setToday'
   },
   updater: {
     checkForUpdate: 'updater:checkForUpdate'
@@ -390,6 +395,11 @@ export interface HealthApi {
   runCheck(): Promise<IpcResult<HealthReport>>
 }
 
+export interface GoalsApi {
+  getToday(): Promise<IpcResult<PracticeGoal>>
+  setToday(targetSeconds: number): Promise<IpcResult<PracticeGoal>>
+}
+
 export interface SystemApi {
   /** 外部链接走系统浏览器（设计 §2.1、§17.4） */
   openExternal(url: string): Promise<IpcResult<boolean>>
@@ -445,6 +455,7 @@ export interface SongCatApi {
   settings: SettingsApi
   backup: BackupApi
   health: HealthApi
+  goals: GoalsApi
   updater: UpdaterApi
   system: SystemApi
 }

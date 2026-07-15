@@ -14,3 +14,4 @@ export type { NewResourceSourceRecord, ResourceSourcePatch } from './resourceSou
 export { downloadJobsRepository } from './downloadJobs'
 export type { NewDownloadJobRecord } from './downloadJobs'
 export { settingsRepository, SETTINGS_KEY_APP } from './settings'
+export { practiceGoalsRepository } from './practiceGoals'

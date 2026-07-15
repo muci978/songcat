@@ -65,6 +65,21 @@ const migrations: Migration[] = [
         PRAGMA foreign_key_check;
       `)
     }
+  },
+  {
+    version: 4,
+    run: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS practice_goals (
+          id TEXT PRIMARY KEY NOT NULL,
+          target_seconds INTEGER NOT NULL DEFAULT 1800,
+          date TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_goals_date ON practice_goals(date);
+      `)
+    }
   }
 ]
 
