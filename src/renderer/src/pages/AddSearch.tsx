@@ -13,6 +13,7 @@ import { toast } from '../stores/toast'
 import { Card, Empty, Modal, Spinner, useAsyncAction } from '../components/ui'
 import { GuistudyViewer } from '../components/GuistudyViewer'
 import { SortPreviewModal } from '../components/SortPreviewModal'
+import { SongCombobox } from '../components/SongCombobox'
 
 type TabKey = 'manual' | 'sources' | 'ai' | 'link'
 
@@ -658,7 +659,7 @@ function LinkTab(): React.ReactElement {
       </div>
       <div className="field">
         <label className="label">目标歌曲</label>
-        <SongSelect songs={songs} value={songId} onChange={setSongId} />
+        <SongCombobox songs={songs} value={songId} onChange={setSongId} />
       </div>
       <div className="row" style={{ gap: 8 }}>
         <div className="field grow" style={{ margin: 0 }}>
