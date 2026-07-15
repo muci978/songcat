@@ -142,14 +142,47 @@ function LibrarySettingsCard({
 }): React.ReactElement {
   const openFolder = useAsyncAction()
   const exportZip = useAsyncAction()
+  const importZip = useAsyncAction()
   const health = useAsyncAction()
+  const changeDir = useAsyncAction()
+  const resetDir = useAsyncAction()
+  const [confirmImport, setConfirmImport] = useState(false)
+  const [importZipPath, setImportZipPath] = useState<string | null>(null)
 
   return (
-    <Card title="曲库设置" style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
+    <Card title="数据管理" style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
       <div className="field">
-        <label className="label">曲库位置</label>
-        <input className="input" value={settings.libraryPath} readOnly />
-        <div className="hint">第一版不支持修改曲库位置。</div>
+        <label className="label">数据目录</label>
+        <div className="row" style={{ gap: 8 }}>
+          <input className="input grow" value={pathInfo?.userDataPath ?? '—'} readOnly />
+          <button
+            className="btn btn-sm"
+            disabled={changeDir.loading}
+            onClick={() =>
+              changeDir.run(async () => {
+                const dir = await unwrap(api.system.selectDataDir())
+                if (dir) {
+                  toast.success(`已设置数据目录，请重启应用生效\n${dir}`)
+                }
+              })
+            }
+          >
+            更改
+          </button>
+          <button
+            className="btn btn-sm"
+            disabled={resetDir.loading}
+            onClick={() =>
+              resetDir.run(async () => {
+                await unwrap(api.system.resetDataDir())
+                toast.success('已恢复默认目录，请重启应用生效')
+              })
+            }
+          >
+            恢复默认
+          </button>
+        </div>
+        <div className="hint">更改后需重启应用生效。数据目录包含数据库、曲谱文件、录音、日志等所有数据。</div>
       </div>
       <div className="row wrap" style={{ gap: 10, marginBottom: 20 }}>
         <button
@@ -157,23 +190,42 @@ function LibrarySettingsCard({
           disabled={openFolder.loading}
           onClick={() =>
             openFolder.run(async () => {
-              await unwrap(api.system.openPath(settings.libraryPath))
+              await unwrap(api.system.openPath(pathInfo?.userDataPath ?? settings.libraryPath))
             })
           }
         >
-          打开曲库文件夹
+          打开数据目录
         </button>
         <button
           className="btn"
           disabled={exportZip.loading}
           onClick={() =>
             exportZip.run(async () => {
-              const { path } = await unwrap(api.backup.exportZip())
+              // 弹出文件夹选择导出目录
+              const dir = await unwrap(api.system.selectDataDir())
+              const { path } = await unwrap(api.backup.exportZip(dir))
               toast.success('已导出到 ' + path)
             })
           }
         >
-          {exportZip.loading ? '导出中…' : '导出备份 zip'}
+          {exportZip.loading ? '导出中…' : '导出备份'}
+        </button>
+        <button
+          className="btn"
+          disabled={importZip.loading}
+          onClick={async () => {
+            try {
+              const zipPath = await unwrap(api.system.selectZipFile())
+              if (zipPath) {
+                setImportZipPath(zipPath)
+                setConfirmImport(true)
+              }
+            } catch {
+              /* 取消选择 */
+            }
+          }}
+        >
+          {importZip.loading ? '导入中…' : '导入备份'}
         </button>
         <button
           className="btn"
@@ -190,10 +242,27 @@ function LibrarySettingsCard({
       </div>
       {pathInfo && (
         <div className="row-between wrap" style={{ gap: 16 }}>
-          <PathStat label="数据目录" value={pathInfo.dbPath} />
+          <PathStat label="数据库" value={pathInfo.dbPath} />
           <PathStat label="日志目录" value={pathInfo.logsPath} />
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmImport}
+        title="导入备份"
+        danger
+        confirmText="导入"
+        message="导入备份将覆盖当前所有数据（数据库 + 曲谱文件 + 录音），此操作不可撤销。确定继续吗？"
+        onConfirm={() =>
+          importZip.run(async () => {
+            if (!importZipPath) return
+            await unwrap(api.backup.importZip(importZipPath))
+            setConfirmImport(false)
+            toast.success('备份已导入，请重启应用以确保数据刷新')
+          })
+        }
+        onClose={() => setConfirmImport(false)}
+      />
     </Card>
   )
 }

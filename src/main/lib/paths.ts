@@ -5,10 +5,13 @@
  */
 import { app } from 'electron'
 import { join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { DIR, DB_FILENAME } from '@shared'
 import type { PathInfo } from '@shared'
 import { safeJoin } from '../utils/path'
+
+/** 自定义数据目录配置文件名（始终在原始 %APPDATA%/SongCat/ 下） */
+const DATA_DIR_CONFIG = 'songcat-data-dir.json'
 
 let userDataRoot = ''
 
@@ -111,5 +114,53 @@ export function getPathInfo(): PathInfo {
     logsPath: getLogsDir(),
     backupsPath: getBackupsDir(),
     userDataPath: getUserDataRoot()
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 自定义数据目录                                                        */
+/* ------------------------------------------------------------------ */
+
+/** 获取原始默认数据目录（不受 app.setPath 影响） */
+export function getDefaultUserDataRoot(): string {
+  // Electron 默认 userData 在 Windows 上是 %APPDATA%/<appName>
+  return join(process.env.APPDATA ?? '', app.getName())
+}
+
+/**
+ * 读取用户自定义数据目录配置。
+ * 必须在 app.setPath('userData', ...) 调用之前调用，
+ * 此时 app.getPath('userData') 返回的还是原始默认值。
+ */
+export function readCustomDataDir(): string | null {
+  try {
+    const defaultUserData = getDefaultUserDataRoot()
+    const configPath = join(defaultUserData, DATA_DIR_CONFIG)
+    if (!existsSync(configPath)) return null
+    const { dataDir } = JSON.parse(readFileSync(configPath, 'utf-8'))
+    if (typeof dataDir === 'string' && dataDir && existsSync(dataDir)) return dataDir
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** 写入自定义数据目录配置（设置页调用） */
+export function writeCustomDataDir(dataDir: string): void {
+  const defaultUserData = getDefaultUserDataRoot()
+  // 确保原始默认目录存在
+  mkdirSync(defaultUserData, { recursive: true })
+  const configPath = join(defaultUserData, DATA_DIR_CONFIG)
+  writeFileSync(configPath, JSON.stringify({ dataDir, updatedAt: new Date().toISOString() }, null, 2))
+}
+
+/** 删除自定义数据目录配置（恢复默认） */
+export function removeCustomDataDir(): void {
+  try {
+    const defaultUserData = getDefaultUserDataRoot()
+    const configPath = join(defaultUserData, DATA_DIR_CONFIG)
+    if (existsSync(configPath)) unlinkSync(configPath)
+  } catch {
+    /* 忽略删除失败 */
   }
 }

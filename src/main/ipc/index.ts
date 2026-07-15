@@ -3,11 +3,11 @@
  * - 每个通道对应一个 service / repo 调用，统一用 handle() 包装为 IpcResult。
  * - AppError 映射为结构化 IpcError；其他异常归为 INTERNAL。
  */
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { IPC, type ErrorCode, type IpcResult } from '@shared'
 import { isAppError } from '../services/errors'
 import { assetsRepository } from '../db/repositories'
-import { getLogsDir, getPathInfo } from '../lib/paths'
+import { getLogsDir, getPathInfo, writeCustomDataDir, removeCustomDataDir } from '../lib/paths'
 import * as libraryService from '../services/library'
 import * as assetService from '../services/asset'
 import * as sourcesService from '../services/sources'
@@ -155,7 +155,8 @@ export function registerIpc(): void {
   )
 
   /* ---------------- backup ---------------- */
-  ipcMain.handle(IPC.backup.exportZip, () => handle(() => backupService.exportZip()))
+  ipcMain.handle(IPC.backup.exportZip, (_e, destDir) => handle(() => backupService.exportZip(destDir ?? null)))
+  ipcMain.handle(IPC.backup.importZip, (_e, zipPath) => handle(() => backupService.importZip(zipPath)))
 
   /* ---------------- health ---------------- */
   ipcMain.handle(IPC.health.runCheck, () => handle(() => healthService.runHealthCheck()))
@@ -192,6 +193,38 @@ export function registerIpc(): void {
         return true
       }
       return false
+    })
+  )
+
+  ipcMain.handle(IPC.system.selectDataDir, () =>
+    handle(async () => {
+      const result = await dialog.showOpenDialog({
+        title: '选择数据目录',
+        properties: ['openDirectory', 'createDirectory']
+      })
+      if (result.canceled || !result.filePaths[0]) return null
+      const dir = result.filePaths[0]!
+      writeCustomDataDir(dir)
+      return dir
+    })
+  )
+
+  ipcMain.handle(IPC.system.resetDataDir, () =>
+    handle(() => {
+      removeCustomDataDir()
+      return true
+    })
+  )
+
+  ipcMain.handle(IPC.system.selectZipFile, () =>
+    handle(async () => {
+      const result = await dialog.showOpenDialog({
+        title: '选择备份文件',
+        filters: [{ name: 'ZIP 备份', extensions: ['zip'] }],
+        properties: ['openFile']
+      })
+      if (result.canceled || !result.filePaths[0]) return null
+      return result.filePaths[0]!
     })
   )
 }

@@ -18,6 +18,7 @@ import { registerIpc } from './ipc'
 import { recoverInterruptedSessions, stopAllActive } from './services/practice'
 import { assetsRepository, recordingsRepository } from './db/repositories'
 import { createTray, getIsQuitting, setIsQuitting } from './tray'
+import { readCustomDataDir } from './lib/paths'
 
 // 必须在 app ready 之前注册自定义协议为 privileged（支持 fetch/流式）
 protocol.registerSchemesAsPrivileged([
@@ -129,6 +130,12 @@ if (!app.requestSingleInstanceLock()) {
       mainWindow.focus()
     }
   })
+
+  // 在 app ready 之前，读取自定义数据目录配置并覆盖 userData 路径
+  const customDir = readCustomDataDir()
+  if (customDir) {
+    app.setPath('userData', customDir)
+  }
 
   app.whenReady().then(() => {
     let initOk = true

@@ -133,7 +133,8 @@ export const IPC = {
     deleteDeepSeekKey: 'settings:deleteDeepSeekKey'
   },
   backup: {
-    exportZip: 'backup:exportZip'
+    exportZip: 'backup:exportZip',
+    importZip: 'backup:importZip'
   },
   health: {
     runCheck: 'health:runCheck'
@@ -147,7 +148,10 @@ export const IPC = {
     openLogsFolder: 'system:openLogsFolder',
     getPathInfo: 'system:getPathInfo',
     appVersion: 'system:appVersion',
-    setFullscreen: 'system:setFullscreen'
+    setFullscreen: 'system:setFullscreen',
+    selectDataDir: 'system:selectDataDir',
+    resetDataDir: 'system:resetDataDir',
+    selectZipFile: 'system:selectZipFile'
   }
 } as const
 
@@ -369,7 +373,9 @@ export interface SettingsApi {
 }
 
 export interface BackupApi {
-  exportZip(): Promise<IpcResult<{ path: string }>>
+  exportZip(destDir?: string | null): Promise<IpcResult<{ path: string }>>
+  /** 从 zip 文件导入备份，覆盖当前数据 */
+  importZip(zipPath: string): Promise<IpcResult<{ imported: boolean }>>
 }
 
 export interface HealthApi {
@@ -387,6 +393,12 @@ export interface SystemApi {
   setFullscreen(fullscreen: boolean): Promise<IpcResult<boolean>>
   /** 监听全屏状态变化 */
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
+  /** 弹出文件夹选择对话框，返回选中的数据目录路径 */
+  selectDataDir(): Promise<IpcResult<string | null>>
+  /** 重置为默认数据目录 */
+  resetDataDir(): Promise<IpcResult<boolean>>
+  /** 弹出文件选择对话框选择 zip 文件，返回路径 */
+  selectZipFile(): Promise<IpcResult<string | null>>
 }
 
 /* ------------------------------------------------------------------ */

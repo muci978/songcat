@@ -66,7 +66,8 @@ const api: SongCatApi = {
     deleteDeepSeekKey: () => ipcRenderer.invoke(IPC.settings.deleteDeepSeekKey)
   },
   backup: {
-    exportZip: () => ipcRenderer.invoke(IPC.backup.exportZip)
+    exportZip: (destDir?: string | null) => ipcRenderer.invoke(IPC.backup.exportZip, destDir ?? null),
+    importZip: (zipPath: string) => ipcRenderer.invoke(IPC.backup.importZip, zipPath)
   },
   health: {
     runCheck: () => ipcRenderer.invoke(IPC.health.runCheck)
@@ -85,7 +86,10 @@ const api: SongCatApi = {
       const handler = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen)
       ipcRenderer.on('fullscreen-changed', handler)
       return () => ipcRenderer.removeListener('fullscreen-changed', handler)
-    }
+    },
+    selectDataDir: () => ipcRenderer.invoke(IPC.system.selectDataDir),
+    resetDataDir: () => ipcRenderer.invoke(IPC.system.resetDataDir),
+    selectZipFile: () => ipcRenderer.invoke(IPC.system.selectZipFile)
   }
 }
 
