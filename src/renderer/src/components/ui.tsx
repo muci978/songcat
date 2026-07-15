@@ -1,5 +1,6 @@
 /** 共享 UI 基础组件（毛玻璃风格 v2） */
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Difficulty, SongStatus } from '@shared'
 import { toast } from '../stores/toast'
 
@@ -64,7 +65,7 @@ export function Modal({
   width?: number
 }): React.ReactElement | null {
   if (!open) return null
-  return (
+  return createPortal(
     <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal" style={{ maxWidth: width }} onMouseDown={(e) => e.stopPropagation()}>
         {title && (
@@ -78,7 +79,8 @@ export function Modal({
         {children}
         {footer && <div className="modal-footer">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
