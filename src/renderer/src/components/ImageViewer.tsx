@@ -278,7 +278,7 @@ export function ImageViewer({
         top: fs ? 0 : undefined,
         right: fs ? 0 : undefined,
         bottom: fs ? 0 : undefined,
-        background: '#fff',
+        background: 'var(--bg-elevated)',
         borderRadius: fs ? 0 : 8,
         overflow: 'hidden',
         display: 'flex',
@@ -351,7 +351,7 @@ export function ImageViewer({
 
       {/* 翻页控件 */}
       {showPager && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '8px 0', background: 'rgba(255,255,255,0.9)', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '8px 0', background: 'var(--bg-glass)', borderTop: '1px solid var(--border)' }}>
           <button className="btn btn-sm" disabled={curIdx <= 0} onClick={goPrev}>← 上一页</button>
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{curIdx + 1} / {group!.length}</span>
           <button className="btn btn-sm" disabled={curIdx >= group!.length - 1} onClick={goNext}>下一页 →</button>

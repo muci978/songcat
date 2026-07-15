@@ -398,7 +398,7 @@ function Toggle({ on, disabled, onClick }: { on: boolean; disabled?: boolean; on
           width: 18,
           height: 18,
           borderRadius: '50%',
-          background: '#fff',
+          background: 'var(--bg-elevated)',
           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
           transform: on ? 'translateX(17px)' : 'translateX(-1px)',
           transition: 'transform 0.15s ease',

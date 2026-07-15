@@ -17,21 +17,47 @@ import type { DashboardStats } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { formatDate, formatSeconds, minutesLabel, truncate } from '../lib/format'
 import { Card, Empty, Spinner } from '../components/ui'
+import { useTheme } from '../hooks/useTheme'
 
-/* 浅色+半透明配色方案 */
-const PIE_COLORS = [
-  'rgba(249, 115, 22, 0.6)',   // 橙色
-  'rgba(34, 197, 94, 0.6)',    // 绿色
-  'rgba(59, 130, 246, 0.6)',   // 蓝色
-  'rgba(245, 158, 11, 0.6)',   // 琥珀色
-  'rgba(168, 85, 247, 0.6)',   // 紫色
-  'rgba(236, 72, 153, 0.6)',   // 粉色
-  'rgba(6, 182, 212, 0.6)',    // 青色
-]
-const PIE_COLORS_SOLID = [
-  '#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'
-]
-const BAR_COLOR = '#38bdf8'
+/** 根据主题返回图表配色 */
+function getChartColors(isDark: boolean) {
+  return {
+    pieFill: isDark
+      ? [
+          'rgba(249, 115, 22, 0.8)',
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(59, 130, 246, 0.8)',
+          'rgba(245, 158, 11, 0.8)',
+          'rgba(168, 85, 247, 0.8)',
+          'rgba(236, 72, 153, 0.8)',
+          'rgba(6, 182, 212, 0.8)',
+        ]
+      : [
+          'rgba(249, 115, 22, 0.6)',
+          'rgba(34, 197, 94, 0.6)',
+          'rgba(59, 130, 246, 0.6)',
+          'rgba(245, 158, 11, 0.6)',
+          'rgba(168, 85, 247, 0.6)',
+          'rgba(236, 72, 153, 0.6)',
+          'rgba(6, 182, 212, 0.6)',
+        ],
+    pieStroke: isDark
+      ? ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4']
+      : ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'],
+    barFill: isDark ? '#0ea5e9' : '#38bdf8',
+    gridStroke: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+    axisFill: isDark ? '#78716c' : '#9ca3af',
+    axisLineStroke: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+    pieStrokeColor: isDark ? '#1a1816' : '#ffffff',
+    tooltipBg: isDark ? '#242220' : '#ffffff',
+    tooltipBorder: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+    tooltipColor: isDark ? '#f5f5f4' : '#1f2937',
+    tooltipShadow: isDark ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.08)',
+    periodActiveBg: isDark ? '#0ea5e9' : '#38bdf8',
+    periodInactiveBg: isDark ? 'rgba(14,165,233,0.15)' : '#e0f2fe',
+    periodInactiveColor: isDark ? '#38bdf8' : '#0369a1',
+  }
+}
 
 /* 统计卡片鲜艳配色 */
 const STAT_COLORS = [
@@ -50,6 +76,8 @@ export default function Dashboard(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [trendPeriod, setTrendPeriod] = useState<'day' | 'month' | 'year'>('day')
+  const { isDark } = useTheme()
+  const c = getChartColors(isDark)
 
   useEffect(() => {
     void (async () => {
@@ -123,8 +151,8 @@ export default function Dashboard(): React.ReactElement {
                 padding: '4px 12px',
                 borderRadius: 8,
                 border: 'none',
-                background: trendPeriod === p ? '#38bdf8' : '#e0f2fe',
-                color: trendPeriod === p ? '#ffffff' : '#0369a1',
+                background: trendPeriod === p ? c.periodActiveBg : c.periodInactiveBg,
+                color: trendPeriod === p ? '#ffffff' : c.periodInactiveColor,
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -141,29 +169,29 @@ export default function Dashboard(): React.ReactElement {
             trendDataDay.some((d) => d.minutes > 0) ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={trendDataDay}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={c.gridStroke} vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
-                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                    tick={{ fontSize: 11, fill: c.axisFill }}
+                    axisLine={{ stroke: c.axisLineStroke }}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    tick={{ fontSize: 11, fill: c.axisFill }}
                     allowDecimals={false}
-                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                    axisLine={{ stroke: c.axisLineStroke }}
                   />
                   <Tooltip
                     trigger="hover"
                     contentStyle={{
-                      background: '#ffffff',
-                      border: '1px solid rgba(0,0,0,0.08)',
+                      background: c.tooltipBg,
+                      border: `1px solid ${c.tooltipBorder}`,
                       borderRadius: 12,
                       fontSize: 13,
-                      color: '#1f2937',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                      color: c.tooltipColor,
+                      boxShadow: c.tooltipShadow
                     }}
                   />
-                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} activeBar={false} />
+                  <Bar dataKey="minutes" fill={c.barFill} radius={[8, 8, 0, 0]} activeBar={false} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -173,29 +201,29 @@ export default function Dashboard(): React.ReactElement {
             trendDataMonth.some((d) => d.minutes > 0) ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={trendDataMonth}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={c.gridStroke} vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
-                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                    tick={{ fontSize: 11, fill: c.axisFill }}
+                    axisLine={{ stroke: c.axisLineStroke }}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    tick={{ fontSize: 11, fill: c.axisFill }}
                     allowDecimals={false}
-                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                    axisLine={{ stroke: c.axisLineStroke }}
                   />
                   <Tooltip
                     trigger="hover"
                     contentStyle={{
-                      background: '#ffffff',
-                      border: '1px solid rgba(0,0,0,0.08)',
+                      background: c.tooltipBg,
+                      border: `1px solid ${c.tooltipBorder}`,
                       borderRadius: 12,
                       fontSize: 13,
-                      color: '#1f2937',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                      color: c.tooltipColor,
+                      boxShadow: c.tooltipShadow
                     }}
                   />
-                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} activeBar={false} />
+                  <Bar dataKey="minutes" fill={c.barFill} radius={[8, 8, 0, 0]} activeBar={false} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -205,29 +233,29 @@ export default function Dashboard(): React.ReactElement {
             trendDataYear.some((d) => d.minutes > 0) ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={trendDataYear}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={c.gridStroke} vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
-                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                    tick={{ fontSize: 11, fill: c.axisFill }}
+                    axisLine={{ stroke: c.axisLineStroke }}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
+                    tick={{ fontSize: 11, fill: c.axisFill }}
                     allowDecimals={false}
-                    axisLine={{ stroke: 'rgba(0,0,0,0.08)' }}
+                    axisLine={{ stroke: c.axisLineStroke }}
                   />
                   <Tooltip
                     trigger="hover"
                     contentStyle={{
-                      background: '#ffffff',
-                      border: '1px solid rgba(0,0,0,0.08)',
+                      background: c.tooltipBg,
+                      border: `1px solid ${c.tooltipBorder}`,
                       borderRadius: 12,
                       fontSize: 13,
-                      color: '#1f2937',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                      color: c.tooltipColor,
+                      boxShadow: c.tooltipShadow
                     }}
                   />
-                  <Bar dataKey="minutes" fill={BAR_COLOR} radius={[8, 8, 0, 0]} activeBar={false} />
+                  <Bar dataKey="minutes" fill={c.barFill} radius={[8, 8, 0, 0]} activeBar={false} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -251,15 +279,15 @@ export default function Dashboard(): React.ReactElement {
                     outerRadius={120}
                     innerRadius={50}
                     paddingAngle={0}
-                    stroke="#ffffff"
+                    stroke={c.pieStrokeColor}
                     strokeWidth={2}
                     activeShape={false}
                   >
                     {todaySongData.map((entry, i) => (
                       <Cell
                         key={i}
-                        fill={PIE_COLORS[i % PIE_COLORS.length]}
-                        stroke={PIE_COLORS_SOLID[i % PIE_COLORS_SOLID.length]}
+                        fill={c.pieFill[i % c.pieFill.length]}
+                        stroke={c.pieStroke[i % c.pieStroke.length]}
                         strokeWidth={2}
                       />
                     ))}
@@ -268,12 +296,12 @@ export default function Dashboard(): React.ReactElement {
                     trigger="hover"
                     formatter={(v) => `${Math.round(Number(v))} 分钟`}
                     contentStyle={{
-                      background: '#ffffff',
-                      border: '1px solid rgba(0,0,0,0.08)',
+                      background: c.tooltipBg,
+                      border: `1px solid ${c.tooltipBorder}`,
                       borderRadius: 12,
                       fontSize: 13,
-                      color: '#1f2937',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                      color: c.tooltipColor,
+                      boxShadow: c.tooltipShadow
                     }}
                   />
                 </PieChart>
@@ -296,15 +324,15 @@ export default function Dashboard(): React.ReactElement {
                     outerRadius={120}
                     innerRadius={50}
                     paddingAngle={0}
-                    stroke="#ffffff"
+                    stroke={c.pieStrokeColor}
                     strokeWidth={2}
                     activeShape={false}
                   >
                     {todayArtistData.map((entry, i) => (
                       <Cell
                         key={i}
-                        fill={PIE_COLORS[i % PIE_COLORS.length]}
-                        stroke={PIE_COLORS_SOLID[i % PIE_COLORS_SOLID.length]}
+                        fill={c.pieFill[i % c.pieFill.length]}
+                        stroke={c.pieStroke[i % c.pieStroke.length]}
                         strokeWidth={2}
                       />
                     ))}
@@ -313,12 +341,12 @@ export default function Dashboard(): React.ReactElement {
                     trigger="hover"
                     formatter={(v) => formatSeconds(Number(v))}
                     contentStyle={{
-                      background: '#ffffff',
-                      border: '1px solid rgba(0,0,0,0.08)',
+                      background: c.tooltipBg,
+                      border: `1px solid ${c.tooltipBorder}`,
                       borderRadius: 12,
                       fontSize: 13,
-                      color: '#1f2937',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                      color: c.tooltipColor,
+                      boxShadow: c.tooltipShadow
                     }}
                   />
                 </PieChart>
@@ -341,15 +369,15 @@ export default function Dashboard(): React.ReactElement {
                     outerRadius={120}
                     innerRadius={50}
                     paddingAngle={0}
-                    stroke="#ffffff"
+                    stroke={c.pieStrokeColor}
                     strokeWidth={2}
                     activeShape={false}
                   >
                     {allArtistData.map((entry, i) => (
                       <Cell
                         key={i}
-                        fill={PIE_COLORS[i % PIE_COLORS.length]}
-                        stroke={PIE_COLORS_SOLID[i % PIE_COLORS_SOLID.length]}
+                        fill={c.pieFill[i % c.pieFill.length]}
+                        stroke={c.pieStroke[i % c.pieStroke.length]}
                         strokeWidth={2}
                       />
                     ))}
@@ -358,12 +386,12 @@ export default function Dashboard(): React.ReactElement {
                     trigger="hover"
                     formatter={(v) => formatSeconds(Number(v))}
                     contentStyle={{
-                      background: '#ffffff',
-                      border: '1px solid rgba(0,0,0,0.08)',
+                      background: c.tooltipBg,
+                      border: `1px solid ${c.tooltipBorder}`,
                       borderRadius: 12,
                       fontSize: 13,
-                      color: '#1f2937',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                      color: c.tooltipColor,
+                      boxShadow: c.tooltipShadow
                     }}
                   />
                 </PieChart>

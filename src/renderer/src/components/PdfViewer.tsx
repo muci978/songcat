@@ -240,7 +240,7 @@ export function PdfViewer({
         top: fs ? 0 : undefined,
         right: fs ? 0 : undefined,
         bottom: fs ? 0 : undefined,
-        background: '#fff',
+        background: 'var(--bg-elevated)',
         borderRadius: fs ? 0 : 8,
         overflow: 'hidden',
         display: 'flex',
@@ -311,7 +311,7 @@ export function PdfViewer({
               width: '100%',
               height: '100%',
               border: 0,
-              background: '#fff',
+              background: 'var(--bg-elevated)',
               pointerEvents: dragging ? 'none' : 'auto',
             }}
           />
