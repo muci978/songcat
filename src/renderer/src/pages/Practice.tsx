@@ -8,6 +8,7 @@ import { api, unwrap } from '../lib/api'
 import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
 import { toast } from '../stores/toast'
 import { Card, ConfirmDialog, Empty, Spinner, Stars, StatusBadge, useAsyncAction } from '../components/ui'
+import { AudioWaveform } from '../components/AudioWaveform'
 import { GuistudyViewer } from '../components/GuistudyViewer'
 import { ImageViewer } from '../components/ImageViewer'
 import { PdfViewer } from '../components/PdfViewer'
@@ -508,6 +509,7 @@ export default function Practice(): React.ReactElement {
                   />
                   <span style={{ fontWeight: 600 }}>正在录音…</span>
                 </div>
+                {streamRef.current && <AudioWaveform stream={streamRef.current} />}
                 <button className="btn btn-danger" onClick={handleStopRecording}>
                   停止
                 </button>
