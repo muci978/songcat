@@ -279,14 +279,13 @@ export default function Practice(): React.ReactElement {
   if (loading && !detail) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
 
-  // 选择要展示的曲谱：URL assetId 优先；无则按主资源 → guistudy → 本地文件 → 外部链接兜底
+  // 选择要展示的曲谱：URL assetId 优先；无则按主资源 → 有链接的 → 本地文件 → 外部链接兜底
   const primaryScore = detail.scores.find((s) => s.isPrimary)
   const selectedScore =
     (assetId && detail.scores.find((s) => s.id === assetId)) ??
     primaryScore ??
-    detail.scores.find((s) => s.source === 'guistudy') ??
-    detail.scores.find((s) => (s.type === 'pdf' || s.type === 'image') && s.hasLocalFile) ??
-    detail.scores.find((s) => s.type === 'link' && s.source !== 'guistudy')
+    detail.scores.find((s) => s.sourceUrl) ??
+    detail.scores.find((s) => (s.type === 'pdf' || s.type === 'image') && s.hasLocalFile)
 
   // 当前曲谱所在分组（用于多图/PDF连续浏览）
   const group = selectedScore ? siblingGroup(selectedScore, detail.scores) : []
@@ -337,8 +336,12 @@ export default function Practice(): React.ReactElement {
             )}
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
               {selectedScore ? (
-                selectedScore.source === 'guistudy' && selectedScore.sourceUrl ? (
-                  <GuistudyViewer url={selectedScore.sourceUrl} height="100%" />
+                selectedScore.sourceUrl ? (
+                  <GuistudyViewer
+                    url={selectedScore.sourceUrl}
+                    height="100%"
+                    partition={selectedScore.source === 'guistudy' ? 'persist:guistudy' : `persist:source-${selectedScore.source}`}
+                  />
                 ) : selectedScore.type === 'pdf' ? (
                   <PdfViewer
                     assetId={selectedScore.id}
@@ -353,15 +356,6 @@ export default function Practice(): React.ReactElement {
                     group={group.length > 1 ? group : undefined}
                     currentId={selectedScore.id}
                   />
-                ) : selectedScore.sourceUrl ? (
-                  <div className="row">
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => void api.system.openExternal(selectedScore.sourceUrl!).catch(() => {})}
-                    >
-                      打开曲谱链接 ↗
-                    </button>
-                  </div>
                 ) : (
                   <Empty icon="🎼">
                     <div>这首歌还没有可展示的曲谱。</div>
