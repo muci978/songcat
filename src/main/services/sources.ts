@@ -1,8 +1,7 @@
 /**
  * 免费资源站服务（设计 §5.6、§8、§13.4）。
- * 第一版 searchFreeSources 返回每个启用来源的"搜索入口链接"，
- * 用户据此在站点查找资源，再用"粘贴链接"导入（避免抓取/反爬）。
- * 实际抓取与去重作为未来增强（设计 §19.3）。
+ * 支持多来源搜索：每个启用的来源对应一个 SearchAdapter，
+ * guistudy 使用专用适配器，其余使用通用适配器。
  */
 import { resourceSourcesRepository } from '../db/repositories'
 import type {
@@ -13,7 +12,7 @@ import type {
 } from '@shared'
 import { isHttpUrl } from '../utils'
 import { validation } from './errors'
-import { searchGuistudy } from './guistudy'
+import { createAdapter } from './search-adapters'
 
 export function listSources(): ResourceSource[] {
   return resourceSourcesRepository.toModels(resourceSourcesRepository.list())
@@ -52,14 +51,32 @@ export function removeSource(id: string): boolean {
   return resourceSourcesRepository.delete(id)
 }
 
-export async function searchFreeSources(query: string): Promise<FreeSourceSearchResult[]> {
+/**
+ * 按来源 ID 搜索免费资源。
+ * 根据 sourceId 查找对应来源，创建适配器执行搜索。
+ */
+export async function searchFreeSources(
+  query: string,
+  sourceId: string
+): Promise<FreeSourceSearchResult[]> {
   const q = query.trim()
   if (!q) return []
+
+  // 查找来源
+  const row = resourceSourcesRepository.getById(sourceId)
+  if (!row) throw validation(`来源不存在：${sourceId}`)
+  const source = resourceSourcesRepository.toModels([row])[0]
+  if (!source) throw validation(`来源不存在：${sourceId}`)
+  if (!source.enabled) throw validation(`来源「${source.name}」已禁用。`)
+
+  // 创建适配器并搜索
+  const adapter = createAdapter(source)
   try {
-    const results = await searchGuistudy(q)
+    const results = await adapter.search(q)
     return results.map((r) => ({
-      sourceName: 'guistudy 谱全了',
-      sourcePolicy: 'browser-only' as const,
+      sourceId: adapter.sourceId,
+      sourceName: adapter.sourceName,
+      sourcePolicy: adapter.sourcePolicy,
       title: r.title,
       artist: r.artist,
       url: r.url,
@@ -68,14 +85,14 @@ export async function searchFreeSources(query: string): Promise<FreeSourceSearch
       typeLabel: r.typeLabel,
       keyLabel: r.keyLabel,
       snippet: [
-        r.instrument === 'ukulele' ? '尤克里里' : '吉他',
+        r.instrument === 'ukulele' ? '尤克里里' : r.instrument === 'guitar' ? '吉他' : null,
         r.typeLabel,
         r.keyLabel
       ]
         .filter(Boolean)
-        .join(' · ')
+        .join(' · ') || null
     }))
   } catch (e) {
-    throw validation(`guistudy 搜索失败：${(e as Error).message}`)
+    throw validation(`${adapter.sourceName} 搜索失败：${(e as Error).message}`)
   }
 }

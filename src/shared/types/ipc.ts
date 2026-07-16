@@ -349,7 +349,7 @@ export interface SourcesApi {
   create(input: CreateResourceSourceInput): Promise<IpcResult<ResourceSource>>
   update(input: UpdateResourceSourceInput): Promise<IpcResult<ResourceSource>>
   remove(id: string): Promise<IpcResult<{ removed: boolean }>>
-  searchFreeSources(query: string): Promise<IpcResult<FreeSourceSearchResult[]>>
+  searchFreeSources(query: string, sourceId: string): Promise<IpcResult<FreeSourceSearchResult[]>>
 }
 
 export interface DownloadsApi {

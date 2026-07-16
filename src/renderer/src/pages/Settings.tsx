@@ -89,7 +89,7 @@ export default function Settings(): React.ReactElement {
       <SourcesCard sources={sources} reload={reloadSources} />
 
       {/* 3. 搜索设置 */}
-      <SearchSettingsCard settings={settings} update={update} sources={sources} />
+      <SearchSettingsCard settings={settings} update={update} />
 
       {/* 4. DeepSeek */}
       <DeepSeekCard settings={settings} update={update} />
@@ -538,12 +538,10 @@ function CreateSourceModal({
 
 function SearchSettingsCard({
   settings,
-  update,
-  sources
+  update
 }: {
   settings: AppSettings
   update: (patch: Partial<AppSettings>) => Promise<void>
-  sources: ResourceSource[]
 }): React.ReactElement {
   const [searchTimeout, setSearchTimeout] = useState(String(settings.searchTimeoutMs))
   const [downloadTimeout, setDownloadTimeout] = useState(String(settings.downloadTimeoutMs))
@@ -571,22 +569,6 @@ function SearchSettingsCard({
 
   return (
     <Card title="搜索设置" style={{ marginBottom: 16 }}>
-      <div className="field">
-        <label className="label">默认来源</label>
-        <select
-          className="select"
-          value={settings.defaultResourceSourceId ?? ''}
-          onChange={(e) => void update({ defaultResourceSourceId: e.target.value || null })}
-        >
-          <option value="">（未指定）</option>
-          {sources.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-        <div className="hint">用于 Add/Search 页面免费资源站搜索的默认来源。</div>
-      </div>
       <div className="row" style={{ gap: 16, marginBottom: 12 }}>
         <div className="field grow" style={{ margin: 0 }}>
           <label className="label">搜索超时（毫秒）</label>
@@ -599,6 +581,7 @@ function SearchSettingsCard({
             onChange={(e) => setSearchTimeout(e.target.value)}
             onBlur={() => void applyTimeout()}
           />
+          <div className="hint">全局搜索请求的超时时间，适用于所有来源。</div>
         </div>
         <div className="field grow" style={{ margin: 0 }}>
           <label className="label">下载超时（毫秒）</label>

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import type {
   AiCandidate,
   FreeSourceSearchResult,
+  ResourceSource,
   SongSummary
 } from '@shared'
 import { DEEPSEEK_PRIVACY_TEXT, DISCLAIMER_TEXT } from '@shared'
@@ -255,6 +256,34 @@ function ManualTab(): React.ReactElement {
 /* ------------------------------------------------------------------ */
 
 function SourcesTab(): React.ReactElement {
+  const [sources, setSources] = useState<ResourceSource[]>([])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const all = await unwrap(api.sources.list())
+        setSources(all.filter((s) => s.enabled))
+      } catch (e) {
+        toast.error((e as Error).message)
+      }
+    })()
+  }, [])
+
+  if (sources.length === 0) {
+    return <Empty>没有启用的免费资源站。请在设置中添加或启用来源。</Empty>
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {sources.map((source) => (
+        <SourceSearchPanel key={source.id} source={source} />
+      ))}
+    </div>
+  )
+}
+
+/** 单个来源的搜索面板 */
+function SourceSearchPanel({ source }: { source: ResourceSource }): React.ReactElement {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FreeSourceSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
@@ -265,6 +294,9 @@ function SourcesTab(): React.ReactElement {
     songId: string; title: string; artist: string | null
   } | null>(null)
 
+  const isGuistudy = source.name.toLowerCase().includes('guistudy') ||
+    (source.baseUrl ?? '').toLowerCase().includes('guistudy.com')
+
   const search = async () => {
     const q = query.trim()
     if (!q) {
@@ -274,7 +306,7 @@ function SourcesTab(): React.ReactElement {
     setSearching(true)
     setResults(null)
     try {
-      setResults(await unwrap(api.sources.searchFreeSources(q)))
+      setResults(await unwrap(api.sources.searchFreeSources(q, source.id)))
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -282,7 +314,6 @@ function SourcesTab(): React.ReactElement {
     }
   }
 
-  // 一键入库：按标题+艺人 findOrCreate 歌曲，再保存 guistudy 曲谱页 URL（嵌入查看）
   const importToLibrary = async (r: FreeSourceSearchResult) => {
     if (busyRef[r.url]) return
     busyRef[r.url] = true
@@ -293,7 +324,7 @@ function SourcesTab(): React.ReactElement {
           url: r.url,
           title: r.title,
           sourceName: r.sourceName,
-          source: 'guistudy',
+          source: isGuistudy ? 'guistudy' : 'local',
           instrument: r.instrument ?? undefined
         })
       )
@@ -305,9 +336,11 @@ function SourcesTab(): React.ReactElement {
     }
   }
 
+  const partition = isGuistudy ? 'persist:guistudy' : `persist:source-${source.id}`
+
   return (
     <div>
-      <Card title="搜索曲谱（guistudy 谱全了）" style={{ marginBottom: 16 }}>
+      <Card title={`搜索曲谱（${source.name}）`} style={{ marginBottom: 16 }}>
         <div className="row" style={{ gap: 8 }}>
           <input
             className="input grow"
@@ -317,15 +350,16 @@ function SourcesTab(): React.ReactElement {
             onKeyDown={(e) => {
               if (e.key === 'Enter') void search()
             }}
-            autoFocus
           />
           <button className="btn btn-primary" disabled={searching} onClick={() => void search()}>
             {searching ? '搜索中…' : '搜索'}
           </button>
         </div>
-        <div className="hint" style={{ marginTop: 8 }}>
-          在 guistudy 免费曲谱库搜索吉他谱/尤克里里谱。点「一键入库」后本地只保存曲谱页链接，打开时直接在 SongCat 内嵌查看（可播放/循环/变调），不下载文件。
-        </div>
+        {isGuistudy && (
+          <div className="hint" style={{ marginTop: 8 }}>
+            在 guistudy 免费曲谱库搜索吉他谱/尤克里里谱。点「一键入库」后本地只保存曲谱页链接，打开时直接在 SongCat 内嵌查看（可播放/循环/变调），不下载文件。
+          </div>
+        )}
       </Card>
 
       {searching ? (
@@ -384,6 +418,7 @@ function SourcesTab(): React.ReactElement {
         url={previewUrl}
         title={previewTitle}
         onClose={() => { setPreviewUrl(null); setPreviewTitle('') }}
+        partition={partition}
       />
       <RenameModal
         open={renameTarget !== null}
@@ -411,6 +446,20 @@ function AiTab(): React.ReactElement {
   const [renameTarget, setRenameTarget] = useState<{
     songId: string; title: string; artist: string | null
   } | null>(null)
+
+  // 加载来源列表，找到 guistudy 来源 ID（AI 搜索自动关联 guistudy 曲谱）
+  const [guistudySourceId, setGuistudySourceId] = useState<string | null>(null)
+  useEffect(() => {
+    void (async () => {
+      try {
+        const all = await unwrap(api.sources.list())
+        const gs = all.find((s) =>
+          s.enabled && (s.name.toLowerCase().includes('guistudy') || (s.baseUrl ?? '').toLowerCase().includes('guistudy.com'))
+        )
+        setGuistudySourceId(gs?.id ?? null)
+      } catch { /* non-critical */ }
+    })()
+  }, [])
 
   const search = async () => {
     const q = query.trim()
@@ -440,8 +489,9 @@ function AiTab(): React.ReactElement {
     setPreviewLoading(true)
     setPreviewTitle(c.title)
     try {
+      if (!guistudySourceId) { setPreviewUrl(null); return }
       const kw = c.artist ? `${c.title} ${c.artist}` : c.title
-      const results = await unwrap(api.sources.searchFreeSources(kw))
+      const results = await unwrap(api.sources.searchFreeSources(kw, guistudySourceId))
       if (results.length > 0) {
         setPreviewUrl(results[0].url)
       } else {
@@ -460,7 +510,8 @@ function AiTab(): React.ReactElement {
       // AI 识别出歌后，自动用 guistudy 搜该歌，取第一首曲谱关联入库（一键带谱）
       const kw = c.artist ? `${c.title} ${c.artist}` : c.title
       try {
-        const results = await unwrap(api.sources.searchFreeSources(kw))
+        if (!guistudySourceId) throw new Error('guistudy 来源未启用')
+        const results = await unwrap(api.sources.searchFreeSources(kw, guistudySourceId))
         if (results.length > 0) {
           // 优先取标题匹配的，避免搜索结果含其他歌时取到不相关的
           const matched = results.filter(
@@ -602,6 +653,7 @@ function AiTab(): React.ReactElement {
         url={previewUrl}
         title={previewTitle}
         onClose={() => { setPreviewUrl(null); setPreviewTitle('') }}
+        partition="persist:guistudy"
       />
       <RenameModal
         open={renameTarget !== null}
@@ -700,19 +752,21 @@ function ScorePreviewModal({
   open,
   url,
   title,
-  onClose
+  onClose,
+  partition
 }: {
   open: boolean
   url: string | null
   title: string
   onClose: () => void
+  partition?: string
 }): React.ReactElement | null {
   if (!open) return null
   return (
     <Modal open={open} title={`预览：${title}`} onClose={onClose} width={960}>
       {url ? (
         <div style={{ width: '100%', height: 640 }}>
-          <GuistudyViewer url={url} height="100%" />
+          <GuistudyViewer url={url} height="100%" partition={partition} />
         </div>
       ) : (
         <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-faint)' }}>

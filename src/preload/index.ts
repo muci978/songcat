@@ -34,7 +34,7 @@ const api: SongCatApi = {
     create: (input) => ipcRenderer.invoke(IPC.sources.create, input),
     update: (input) => ipcRenderer.invoke(IPC.sources.update, input),
     remove: (id) => ipcRenderer.invoke(IPC.sources.remove, id),
-    searchFreeSources: (query) => ipcRenderer.invoke(IPC.sources.searchFreeSources, query)
+    searchFreeSources: (query, sourceId) => ipcRenderer.invoke(IPC.sources.searchFreeSources, query, sourceId)
   },
   downloads: {
     startDownload: (input) => ipcRenderer.invoke(IPC.downloads.startDownload, input)

@@ -97,8 +97,8 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.sources.remove, (_e, id) =>
     handle(() => ({ removed: sourcesService.removeSource(id) }))
   )
-  ipcMain.handle(IPC.sources.searchFreeSources, (_e, query) =>
-    handle(() => sourcesService.searchFreeSources(query))
+  ipcMain.handle(IPC.sources.searchFreeSources, (_e, query, sourceId) =>
+    handle(() => sourcesService.searchFreeSources(query, sourceId))
   )
 
   /* ---------------- downloads ---------------- */

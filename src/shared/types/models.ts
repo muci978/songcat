@@ -255,11 +255,12 @@ export interface SongDetail extends SongSummary {
 
 /** 单条搜索结果（guistudy 实际搜索结果） */
 export interface FreeSourceSearchResult {
+  sourceId: string
   sourceName: string
   sourcePolicy: ResourceSourcePolicy
   title: string
   artist: string | null
-  /** guistudy 曲谱详情页 URL（/tabs/{id}） */
+  /** 曲谱详情页 URL */
   url: string
   instrument: Instrument | null
   screenshotUrl: string | null

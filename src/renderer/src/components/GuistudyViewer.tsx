@@ -33,9 +33,11 @@ const MOBILE_USER_AGENT = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X
 interface GuistudyViewerProps {
   url: string
   height?: string | number
+  /** webview partition，默认 'persist:guistudy' */
+  partition?: string
 }
 
-export const GuistudyViewer = memo(function GuistudyViewer({ url, height }: GuistudyViewerProps): React.ReactElement {
+export const GuistudyViewer = memo(function GuistudyViewer({ url, height, partition = 'persist:guistudy' }: GuistudyViewerProps): React.ReactElement {
   const [fs, setFs] = useState(false)
   const wvRef = useRef<HTMLElement & {
     insertCSS?: (css: string) => Promise<unknown>
@@ -153,7 +155,7 @@ export const GuistudyViewer = memo(function GuistudyViewer({ url, height }: Guis
         <webview
           ref={wvRef as never}
           src={prevUrlRef.current}
-          partition="persist:guistudy"
+          partition={partition}
           allowpopups={false}
           disablewebsecurity={false}
           nodeintegration={false}
