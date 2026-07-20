@@ -21,6 +21,7 @@ import * as backupService from '../services/backup'
 import * as healthService from '../services/health'
 import * as goalService from '../services/goal'
 import * as updaterService from '../services/updater'
+import * as shareService from '../services/share'
 
 async function handle<T>(fn: () => T | Promise<T>): Promise<IpcResult<T>> {
   try {
@@ -234,5 +235,13 @@ export function registerIpc(): void {
       if (result.canceled || !result.filePaths[0]) return null
       return result.filePaths[0]!
     })
+  )
+
+  /* ---------------- share ---------------- */
+  ipcMain.handle(IPC.share.saveShareImage, (_e, dataUrl) =>
+    handle(() => shareService.saveShareImage(dataUrl))
+  )
+  ipcMain.handle(IPC.share.copyShareImage, (_e, dataUrl) =>
+    handle(() => shareService.copyShareImage(dataUrl))
   )
 }

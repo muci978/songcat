@@ -166,6 +166,10 @@ export const IPC = {
     selectDataDir: 'system:selectDataDir',
     resetDataDir: 'system:resetDataDir',
     selectZipFile: 'system:selectZipFile'
+  },
+  share: {
+    saveShareImage: 'share:saveShareImage',
+    copyShareImage: 'share:copyShareImage'
   }
 } as const
 
@@ -423,6 +427,10 @@ export interface SystemApi {
 }
 
 /* ------------------------------------------------------------------ */
+/* 分享（share）                                                         */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
 /* 更新检查                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -446,6 +454,13 @@ export interface UpdaterApi {
   checkForUpdate(): Promise<IpcResult<UpdateInfo>>
 }
 
+export interface ShareApi {
+  /** 弹出保存对话框，将图片保存到用户指定路径 */
+  saveShareImage(dataUrl: string): Promise<IpcResult<{ path: string }>>
+  /** 将图片复制到系统剪贴板 */
+  copyShareImage(dataUrl: string): Promise<IpcResult<boolean>>
+}
+
 export interface SongCatApi {
   library: LibraryApi
   assets: AssetsApi
@@ -461,4 +476,5 @@ export interface SongCatApi {
   goals: GoalsApi
   updater: UpdaterApi
   system: SystemApi
+  share: ShareApi
 }

@@ -19,6 +19,7 @@ import { formatDate, formatSeconds, minutesLabel, truncate } from '../lib/format
 import { Card, Empty, Spinner } from '../components/ui'
 import { useTheme } from '../hooks/useTheme'
 import { GoalProgress } from '../components/GoalProgress'
+import { ShareModal } from '../components/ShareModal'
 
 /** 根据主题返回图表配色 */
 function getChartColors(isDark: boolean) {
@@ -78,6 +79,7 @@ export default function Dashboard(): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [trendPeriod, setTrendPeriod] = useState<'day' | 'month' | 'year'>('day')
+  const [showShareModal, setShowShareModal] = useState(false)
   const { isDark } = useTheme()
   const c = getChartColors(isDark)
 
@@ -133,6 +135,14 @@ export default function Dashboard(): React.ReactElement {
     <div>
       <div className="page-header">
         <h1>Dashboard</h1>
+        <button
+          className="btn btn-ghost"
+          onClick={() => setShowShareModal(true)}
+          title="分享练习统计"
+          style={{ marginLeft: 'auto', fontSize: 18 }}
+        >
+          📤
+        </button>
       </div>
 
       {/* 统计卡片 —— 横向彩色长条卡片 */}
@@ -443,6 +453,14 @@ export default function Dashboard(): React.ReactElement {
           <Empty>还没有练习记录，去曲库选一首开始吧</Empty>
         )}
       </Card>
+
+      {/* 分享弹窗 */}
+      <ShareModal
+        open={showShareModal}
+        stats={stats}
+        goal={goal}
+        onClose={() => setShowShareModal(false)}
+      />
     </div>
   )
 }

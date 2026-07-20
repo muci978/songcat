@@ -95,6 +95,10 @@ const api: SongCatApi = {
     selectDataDir: () => ipcRenderer.invoke(IPC.system.selectDataDir),
     resetDataDir: () => ipcRenderer.invoke(IPC.system.resetDataDir),
     selectZipFile: () => ipcRenderer.invoke(IPC.system.selectZipFile)
+  },
+  share: {
+    saveShareImage: (dataUrl) => ipcRenderer.invoke(IPC.share.saveShareImage, dataUrl),
+    copyShareImage: (dataUrl) => ipcRenderer.invoke(IPC.share.copyShareImage, dataUrl)
   }
 }
 
