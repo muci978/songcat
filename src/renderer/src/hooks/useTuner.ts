@@ -1,9 +1,8 @@
 /** useTuner — 吉他/尤克里里调音器 Hook
  *
  * 核心设计：
- *   - 自相关（Autocorrelation）音高检测：从麦克风获取时域数据，
- *     做自相关运算找基频周期 → f = sampleRate / period
- *   - 参考音：OscillatorNode + GainNode 播放标准音高正弦波，2 秒自动淡出
+ *   - 自相关（Autocorrelation）音高检测 + 平滑滤波：避免音符跳变
+ *   - 参考音：多泛音合成模拟吉他弦清脆透明音色
  *   - 麦克风管理：getUserMedia 获取音频流，组件卸载时释放
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -13,14 +12,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 /* ------------------------------------------------------------------ */
 
 const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'] as const
-
-/** A4 = 440Hz，所有音符基于此计算 */
 const A4_FREQUENCY = 440
 const A4_MIDI = 69
 
-/** 频率 → 音符信息 */
 function frequencyToNote(freq: number): { note: string; octave: number; cent: number } {
-  // MIDI 编号 = 69 + 12 * log2(freq / 440)
   const midi = A4_MIDI + 12 * Math.log2(freq / A4_FREQUENCY)
   const roundedMidi = Math.round(midi)
   const cent = Math.round((midi - roundedMidi) * 100)
@@ -33,7 +28,6 @@ function frequencyToNote(freq: number): { note: string; octave: number; cent: nu
   }
 }
 
-/** 音符+八度 → 频率 */
 function noteToFrequency(note: string, octave: number): number {
   const noteIndex = NOTE_NAMES.indexOf(note as typeof NOTE_NAMES[number])
   if (noteIndex === -1) return A4_FREQUENCY
@@ -41,25 +35,21 @@ function noteToFrequency(note: string, octave: number): number {
   return A4_FREQUENCY * Math.pow(2, (midi - A4_MIDI) / 12)
 }
 
+function noteKey(note: string, octave: number): string {
+  return `${note}${octave}`
+}
+
 /* ------------------------------------------------------------------ */
 /* 自相关音高检测                                                        */
 /* ------------------------------------------------------------------ */
 
 const FFT_SIZE = 2048
-/** 检测频率范围：E2(82.4Hz) ~ E6(1318.5Hz) */
 const MIN_FREQUENCY = 60
 const MAX_FREQUENCY = 1400
 
-/**
- * 自相关音高检测算法
- * @param buf 时域浮点数据
- * @param sampleRate 音频采样率
- * @returns 检测到的频率，未检测到返回 null
- */
 function detectPitch(buf: Float32Array, sampleRate: number): number | null {
   const SIZE = buf.length
 
-  // 计算 RMS，信号太弱则跳过
   let rms = 0
   for (let i = 0; i < SIZE; i++) {
     rms += buf[i]! * buf[i]!
@@ -67,7 +57,6 @@ function detectPitch(buf: Float32Array, sampleRate: number): number | null {
   rms = Math.sqrt(rms / SIZE)
   if (rms < 0.01) return null
 
-  // 自相关
   const correlations = new Float32Array(SIZE)
   for (let lag = 0; lag < SIZE; lag++) {
     let sum = 0
@@ -77,13 +66,11 @@ function detectPitch(buf: Float32Array, sampleRate: number): number | null {
     correlations[lag] = sum
   }
 
-  // 找第一个下降点（跳过 lag=0 的自峰）
   let firstDip = 0
   while (firstDip < SIZE - 1 && correlations[firstDip + 1]! > correlations[firstDip]!) {
     firstDip++
   }
 
-  // 从第一个下降点之后找最大峰值
   let bestLag = -1
   let bestCorr = -Infinity
   const minLag = Math.floor(sampleRate / MAX_FREQUENCY)
@@ -98,7 +85,6 @@ function detectPitch(buf: Float32Array, sampleRate: number): number | null {
 
   if (bestLag === -1) return null
 
-  // 抛物线插值提高精度
   const y1 = correlations[bestLag - 1] ?? 0
   const y2 = correlations[bestLag]!
   const y3 = correlations[bestLag + 1] ?? 0
@@ -117,7 +103,6 @@ export interface TunerPreset {
   strings: { note: string; octave: number }[]
 }
 
-/** 标准吉他调弦 */
 export const GUITAR_STANDARD: TunerPreset = {
   name: '标准吉他',
   strings: [
@@ -130,7 +115,6 @@ export const GUITAR_STANDARD: TunerPreset = {
   ]
 }
 
-/** 尤克里里调弦 */
 export const UKULELE_STANDARD: TunerPreset = {
   name: '尤克里里',
   strings: [
@@ -156,6 +140,9 @@ export interface UseTunerReturn {
   referencePlaying: boolean
 }
 
+/** 音符稳定需要的连续帧数（~60fps 下约 200ms） */
+const STABILITY_FRAMES = 12
+
 export function useTuner(): UseTunerReturn {
   const [active, setActive] = useState(false)
   const [frequency, setFrequency] = useState<number | null>(null)
@@ -171,11 +158,18 @@ export function useTuner(): UseTunerReturn {
   const rafRef = useRef<number>(0)
   const activeRef = useRef(false)
 
-  // 参考音 refs（多个振荡器，模拟泛音）
+  // 参考音 refs
   const refOscsRef = useRef<OscillatorNode[]>([])
   const refGainRef = useRef<GainNode | null>(null)
+  const refTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  /* ---- 检测循环 ---- */
+  // 平滑/稳定 refs
+  const stableNoteRef = useRef<string | null>(null)
+  const stableOctaveRef = useRef<number | null>(null)
+  const stableCountRef = useRef(0)
+  const smoothFreqRef = useRef<number | null>(null)
+
+  /* ---- 检测循环（带平滑） ---- */
   const detect = useCallback(() => {
     if (!activeRef.current) return
 
@@ -186,19 +180,45 @@ export function useTuner(): UseTunerReturn {
     const buf = new Float32Array(analyser.fftSize)
     analyser.getFloatTimeDomainData(buf)
 
-    const freq = detectPitch(buf, ctx.sampleRate)
+    const rawFreq = detectPitch(buf, ctx.sampleRate)
 
-    if (freq !== null && freq >= MIN_FREQUENCY && freq <= MAX_FREQUENCY) {
-      const info = frequencyToNote(freq)
-      setFrequency(Math.round(freq * 100) / 100)
-      setNote(info.note)
-      setOctave(info.octave)
-      setCent(info.cent)
+    if (rawFreq !== null && rawFreq >= MIN_FREQUENCY && rawFreq <= MAX_FREQUENCY) {
+      // 指数移动平均平滑频率
+      const prevFreq = smoothFreqRef.current
+      const smoothFreq = prevFreq ? prevFreq * 0.7 + rawFreq * 0.3 : rawFreq
+      smoothFreqRef.current = smoothFreq
+
+      const info = frequencyToNote(smoothFreq)
+      const key = noteKey(info.note, info.octave)
+
+      // 稳定性检查：连续检测到同一音符才更新显示
+      if (stableNoteRef.current === key) {
+        stableCountRef.current++
+      } else {
+        stableNoteRef.current = key
+        stableOctaveRef.current = info.octave
+        stableCountRef.current = 1
+      }
+
+      if (stableCountRef.current >= STABILITY_FRAMES) {
+        setFrequency(Math.round(smoothFreq * 100) / 100)
+        setNote(info.note)
+        setOctave(info.octave)
+        // cent 用更多平滑
+        setCent((prev) => Math.round(prev * 0.6 + info.cent * 0.4))
+      }
     } else {
-      setFrequency(null)
-      setNote(null)
-      setOctave(null)
-      setCent(0)
+      smoothFreqRef.current = null
+      // 信号丢失：重置稳定性
+      if (stableCountRef.current > 0) {
+        stableCountRef.current = 0
+        stableNoteRef.current = null
+        stableOctaveRef.current = null
+        setFrequency(null)
+        setNote(null)
+        setOctave(null)
+        setCent(0)
+      }
     }
 
     rafRef.current = requestAnimationFrame(detect)
@@ -222,11 +242,16 @@ export function useTuner(): UseTunerReturn {
 
       source.connect(analyser)
 
+      // 重置平滑状态
+      smoothFreqRef.current = null
+      stableNoteRef.current = null
+      stableOctaveRef.current = null
+      stableCountRef.current = 0
+
       activeRef.current = true
       setActive(true)
       rafRef.current = requestAnimationFrame(detect)
     } catch {
-      // 麦克风权限被拒
       activeRef.current = false
       setActive(false)
     }
@@ -253,6 +278,10 @@ export function useTuner(): UseTunerReturn {
       ctxRef.current.close().catch(() => {})
       ctxRef.current = null
     }
+    smoothFreqRef.current = null
+    stableNoteRef.current = null
+    stableOctaveRef.current = null
+    stableCountRef.current = 0
     setActive(false)
     setFrequency(null)
     setNote(null)
@@ -267,6 +296,10 @@ export function useTuner(): UseTunerReturn {
       try { osc.stop() } catch { /* */ }
     }
     refOscsRef.current = []
+    if (refTimeoutRef.current) {
+      clearTimeout(refTimeoutRef.current)
+      refTimeoutRef.current = null
+    }
 
     const ctx = ctxRef.current ?? new AudioContext()
     if (!ctxRef.current) ctxRef.current = ctx
@@ -275,24 +308,26 @@ export function useTuner(): UseTunerReturn {
     const freq = noteToFrequency(noteName, noteOctave)
     const now = ctx.currentTime
 
-    // 主增益：模拟吉他弦的快速起音 + 指数衰减
+    // 总时长：低音 ~5s，高音 ~3.5s（吉他低音弦共鸣更久）
+    const totalTime = 3.5 + 1.5 * (1 - Math.min(freq / 800, 1))
+
+    // 主增益：拨弦式起音 + 长衰减 + 尾部快淡
     const masterGain = ctx.createGain()
     masterGain.gain.setValueAtTime(0.001, now)
-    // 快速起音
-    masterGain.gain.linearRampToValueAtTime(0.5, now + 0.01)
-    // 指数衰减（低音衰减更慢，高音衰减更快）
-    const decayTime = 1.5 + 1.0 * (1 - Math.min(freq / 1000, 1))
-    masterGain.gain.exponentialRampToValueAtTime(0.001, now + decayTime)
+    masterGain.gain.linearRampToValueAtTime(0.45, now + 0.005)   // 极快起音
+    masterGain.gain.setTargetAtTime(0.25, now + 0.005, totalTime * 0.3)  // 自然衰减到 1/e
+    masterGain.gain.setTargetAtTime(0.001, now + totalTime * 0.5, totalTime * 0.2) // 尾部淡出
     masterGain.connect(ctx.destination)
     refGainRef.current = masterGain
 
-    // 泛音合成：基频 + 2倍频 + 3倍频 + 4倍频
-    // 模拟吉他弦的明亮音色
+    // 泛音合成：模拟吉他弦清脆透明音色
+    // 关键：基频用 sawtooth（丰富的奇偶泛音），大幅提升 2-5 次泛音增益
     const harmonics: { freqMul: number; volume: number; type: OscillatorType }[] = [
-      { freqMul: 1,   volume: 1.0,  type: 'triangle' },  // 基频：三角波比正弦波亮
-      { freqMul: 2,   volume: 0.4,  type: 'sine' },       // 2次泛音
-      { freqMul: 3,   volume: 0.2,  type: 'sine' },       // 3次泛音
-      { freqMul: 4,   volume: 0.08, type: 'sine' },       // 4次泛音
+      { freqMul: 1,   volume: 0.6,  type: 'sawtooth' },  // 基频：锯齿波，含全部泛音，最清脆
+      { freqMul: 2,   volume: 0.5,  type: 'sine' },       // 2 次泛音：八度，增强透明感
+      { freqMul: 3,   volume: 0.3,  type: 'sine' },       // 3 次泛音：十二度
+      { freqMul: 4,   volume: 0.15, type: 'sine' },       // 4 次泛音：二次八度
+      { freqMul: 5,   volume: 0.06, type: 'sine' },       // 5 次泛音：大三度区域，增加"钢弦"质感
     ]
 
     const oscs: OscillatorNode[] = []
@@ -304,9 +339,10 @@ export function useTuner(): UseTunerReturn {
       osc.type = h.type
       osc.frequency.value = freq * h.freqMul
 
-      // 高次泛音衰减更快（模拟吉他弦的物理特性）
-      const hDecay = decayTime / (1 + (h.freqMul - 1) * 0.5)
+      // 高次泛音衰减更快
+      const hDecay = totalTime * (1 - (h.freqMul - 1) * 0.12)
       gain.gain.setValueAtTime(h.volume, now)
+      gain.gain.setTargetAtTime(h.volume * 0.3, now + 0.01, hDecay * 0.4)
       gain.gain.exponentialRampToValueAtTime(0.001, now + hDecay)
 
       osc.connect(gain)
@@ -318,15 +354,14 @@ export function useTuner(): UseTunerReturn {
     }
 
     refOscsRef.current = oscs
-
     setReferencePlaying(true)
 
-    // 衰减结束后自动标记停止
-    setTimeout(() => {
+    refTimeoutRef.current = setTimeout(() => {
       setReferencePlaying(false)
       refOscsRef.current = []
       refGainRef.current = null
-    }, (decayTime + 0.2) * 1000)
+      refTimeoutRef.current = null
+    }, (totalTime + 0.3) * 1000)
   }, [])
 
   const stopReference = useCallback(() => {
@@ -335,6 +370,10 @@ export function useTuner(): UseTunerReturn {
     }
     refOscsRef.current = []
     refGainRef.current = null
+    if (refTimeoutRef.current) {
+      clearTimeout(refTimeoutRef.current)
+      refTimeoutRef.current = null
+    }
     setReferencePlaying(false)
   }, [])
 
@@ -344,6 +383,7 @@ export function useTuner(): UseTunerReturn {
       activeRef.current = false
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       for (const osc of refOscsRef.current) { try { osc.stop() } catch { /* */ } }
+      if (refTimeoutRef.current) clearTimeout(refTimeoutRef.current)
       if (sourceRef.current) sourceRef.current.disconnect()
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop())
       if (ctxRef.current) ctxRef.current.close().catch(() => {})
