@@ -695,3 +695,10 @@ h3 {
   padding: 4px 8px !important;
   user-select: none;
 }
+
+/* ===================== 调音器 ===================== */
+.tuner-string-btn {
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

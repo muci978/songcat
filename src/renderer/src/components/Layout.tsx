@@ -7,6 +7,7 @@ import logo from '../../public/logo.png'
 const NAV: { to: string; label: string; icon: string; end?: boolean }[] = [
   { to: '/', label: 'Dashboard', icon: '📊', end: true },
   { to: '/library', label: '曲库', icon: '📚' },
+  { to: '/tuner', label: '调音器', icon: '🎸' },
   { to: '/add', label: '添加 / 搜索', icon: '＋' },
   { to: '/settings', label: '设置', icon: '⚙' }
 ]
