@@ -141,8 +141,8 @@ export function useTuner(): UseTunerReturn {
   const rafRef = useRef<number>(0)
   const activeRef = useRef(false)
 
-  // 参考音 refs
-  const refOscRef = useRef<OscillatorNode | null>(null)
+  // 参考音 refs（多振荡器 + 噪声层）
+  const refNodesRef = useRef<OscillatorNode[]>([])
   const refGainRef = useRef<GainNode | null>(null)
   const refTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -284,13 +284,11 @@ export function useTuner(): UseTunerReturn {
     setCent(0)
   }, [])
 
-  /* ---- 参考音：简洁正弦波 + 长衰减 ---- */
+  /* ---- 参考音：模拟钢弦吉他拨弦 ---- */
   const playReference = useCallback((noteName: string, noteOctave: number) => {
     // 停止之前的参考音
-    if (refOscRef.current) {
-      try { refOscRef.current.stop() } catch { /* */ }
-      refOscRef.current = null
-    }
+    for (const n of refNodesRef.current) { try { n.stop() } catch { /* */ } }
+    refNodesRef.current = []
     if (refTimeoutRef.current) {
       clearTimeout(refTimeoutRef.current)
       refTimeoutRef.current = null
@@ -303,43 +301,75 @@ export function useTuner(): UseTunerReturn {
     const freq = noteToFrequency(noteName, noteOctave)
     const now = ctx.currentTime
 
-    // 持续时间：低音 5s，高音 3.5s
-    const duration = 3.5 + 1.5 * (1 - Math.min(freq / 800, 1))
+    // 总时长：低音弦共鸣更久
+    const duration = 4.0 + 2.0 * (1 - Math.min(freq / 600, 1))
 
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
+    // 主增益：拨弦式极快起音 → 指数衰减
+    const masterGain = ctx.createGain()
+    masterGain.gain.setValueAtTime(0.001, now)
+    masterGain.gain.linearRampToValueAtTime(0.35, now + 0.003)  // 极快起音（3ms）
+    masterGain.gain.setTargetAtTime(0.15, now + 0.003, duration * 0.25)  // 自然衰减
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + duration)
+    masterGain.connect(ctx.destination)
+    refGainRef.current = masterGain
 
-    osc.type = 'sine'
-    osc.frequency.value = freq
+    // 钢弦吉他泛音特征：
+    // - 基频用 sine（干净），但加独立的泛音层来增加明亮感
+    // - 泛音增益比真实吉他稍高（方便听辨），但衰减更快
+    // - 高次泛音极快衰减 → 只有拨弦瞬间"闪亮"，随后迅速消失
+    //   这就是"清脆透亮但不电子"的关键
+    const harmonics: { n: number; vol: number }[] = [
+      { n: 1,  vol: 1.0  },  // 基频
+      { n: 2,  vol: 0.55 },  // 八度：钢弦的八度泛音很强
+      { n: 3,  vol: 0.35 },  // 十二度
+      { n: 4,  vol: 0.18 },  // 二次八度
+      { n: 5,  vol: 0.10 },  // 大三度区域
+      { n: 6,  vol: 0.05 },  // 更高泛音，只给拨弦瞬间一点闪光
+    ]
 
-    // 起音 + 自然长衰减
-    gain.gain.setValueAtTime(0.001, now)
-    gain.gain.linearRampToValueAtTime(0.5, now + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.001, now + duration)
+    const nodes: OscillatorNode[] = []
 
-    osc.connect(gain)
-    gain.connect(ctx.destination)
+    for (const h of harmonics) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
 
-    osc.start(now)
-    osc.stop(now + duration + 0.1)
+      osc.type = 'sine'
+      osc.frequency.value = freq * h.n
 
-    refOscRef.current = osc
-    refGainRef.current = gain
+      // 高次泛音衰减越来越快：基频持续整段，6次泛音只持续 1/4
+      // 这模拟了钢弦的物理特性：高频振动能量迅速耗散
+      const hDecay = duration * Math.pow(0.75, h.n - 1)
+
+      // 高次泛音的起音更尖锐（瞬间更亮），然后迅速回落
+      gain.gain.setValueAtTime(h.vol, now)
+      if (h.n > 1) {
+        // 泛音：快速闪现后衰减
+        gain.gain.setTargetAtTime(h.vol * 0.2, now + 0.01, hDecay * 0.15)
+      }
+      gain.gain.exponentialRampToValueAtTime(0.001, now + hDecay)
+
+      osc.connect(gain)
+      gain.connect(masterGain)
+
+      osc.start(now)
+      osc.stop(now + hDecay + 0.05)
+      nodes.push(osc)
+    }
+
+    refNodesRef.current = nodes
     setReferencePlaying(true)
 
     refTimeoutRef.current = setTimeout(() => {
       setReferencePlaying(false)
-      refOscRef.current = null
+      refNodesRef.current = []
       refGainRef.current = null
       refTimeoutRef.current = null
     }, (duration + 0.2) * 1000)
   }, [])
 
   const stopReference = useCallback(() => {
-    if (refOscRef.current) {
-      try { refOscRef.current.stop() } catch { /* */ }
-      refOscRef.current = null
-    }
+    for (const n of refNodesRef.current) { try { n.stop() } catch { /* */ } }
+    refNodesRef.current = []
     refGainRef.current = null
     if (refTimeoutRef.current) {
       clearTimeout(refTimeoutRef.current)
@@ -353,7 +383,7 @@ export function useTuner(): UseTunerReturn {
     return () => {
       activeRef.current = false
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      if (refOscRef.current) { try { refOscRef.current.stop() } catch { /* */ } }
+      for (const n of refNodesRef.current) { try { n.stop() } catch { /* */ } }
       if (refTimeoutRef.current) clearTimeout(refTimeoutRef.current)
       if (sourceRef.current) sourceRef.current.disconnect()
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop())
