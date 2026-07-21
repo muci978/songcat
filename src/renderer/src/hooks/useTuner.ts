@@ -171,8 +171,8 @@ export function useTuner(): UseTunerReturn {
   const rafRef = useRef<number>(0)
   const activeRef = useRef(false)
 
-  // 参考音 refs
-  const refOscRef = useRef<OscillatorNode | null>(null)
+  // 参考音 refs（多个振荡器，模拟泛音）
+  const refOscsRef = useRef<OscillatorNode[]>([])
   const refGainRef = useRef<GainNode | null>(null)
 
   /* ---- 检测循环 ---- */
@@ -263,50 +263,77 @@ export function useTuner(): UseTunerReturn {
   /* ---- 参考音 ---- */
   const playReference = useCallback((noteName: string, noteOctave: number) => {
     // 停止之前的参考音
-    if (refOscRef.current) {
-      try { refOscRef.current.stop() } catch { /* */ }
-      refOscRef.current = null
+    for (const osc of refOscsRef.current) {
+      try { osc.stop() } catch { /* */ }
     }
+    refOscsRef.current = []
 
     const ctx = ctxRef.current ?? new AudioContext()
     if (!ctxRef.current) ctxRef.current = ctx
     if (ctx.state === 'suspended') void ctx.resume()
 
     const freq = noteToFrequency(noteName, noteOctave)
+    const now = ctx.currentTime
 
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
+    // 主增益：模拟吉他弦的快速起音 + 指数衰减
+    const masterGain = ctx.createGain()
+    masterGain.gain.setValueAtTime(0.001, now)
+    // 快速起音
+    masterGain.gain.linearRampToValueAtTime(0.5, now + 0.01)
+    // 指数衰减（低音衰减更慢，高音衰减更快）
+    const decayTime = 1.5 + 1.0 * (1 - Math.min(freq / 1000, 1))
+    masterGain.gain.exponentialRampToValueAtTime(0.001, now + decayTime)
+    masterGain.connect(ctx.destination)
+    refGainRef.current = masterGain
 
-    osc.type = 'sine'
-    osc.frequency.value = freq
+    // 泛音合成：基频 + 2倍频 + 3倍频 + 4倍频
+    // 模拟吉他弦的明亮音色
+    const harmonics: { freqMul: number; volume: number; type: OscillatorType }[] = [
+      { freqMul: 1,   volume: 1.0,  type: 'triangle' },  // 基频：三角波比正弦波亮
+      { freqMul: 2,   volume: 0.4,  type: 'sine' },       // 2次泛音
+      { freqMul: 3,   volume: 0.2,  type: 'sine' },       // 3次泛音
+      { freqMul: 4,   volume: 0.08, type: 'sine' },       // 4次泛音
+    ]
 
-    gain.gain.setValueAtTime(0.4, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2)
+    const oscs: OscillatorNode[] = []
 
-    osc.connect(gain)
-    gain.connect(ctx.destination)
+    for (const h of harmonics) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
 
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 2.1)
+      osc.type = h.type
+      osc.frequency.value = freq * h.freqMul
 
-    refOscRef.current = osc
-    refGainRef.current = gain
+      // 高次泛音衰减更快（模拟吉他弦的物理特性）
+      const hDecay = decayTime / (1 + (h.freqMul - 1) * 0.5)
+      gain.gain.setValueAtTime(h.volume, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + hDecay)
+
+      osc.connect(gain)
+      gain.connect(masterGain)
+
+      osc.start(now)
+      osc.stop(now + hDecay + 0.1)
+      oscs.push(osc)
+    }
+
+    refOscsRef.current = oscs
 
     setReferencePlaying(true)
 
-    // 2 秒后自动标记停止
+    // 衰减结束后自动标记停止
     setTimeout(() => {
       setReferencePlaying(false)
-      refOscRef.current = null
+      refOscsRef.current = []
       refGainRef.current = null
-    }, 2100)
+    }, (decayTime + 0.2) * 1000)
   }, [])
 
   const stopReference = useCallback(() => {
-    if (refOscRef.current) {
-      try { refOscRef.current.stop() } catch { /* */ }
-      refOscRef.current = null
+    for (const osc of refOscsRef.current) {
+      try { osc.stop() } catch { /* */ }
     }
+    refOscsRef.current = []
     refGainRef.current = null
     setReferencePlaying(false)
   }, [])
@@ -316,7 +343,7 @@ export function useTuner(): UseTunerReturn {
     return () => {
       activeRef.current = false
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
-      if (refOscRef.current) { try { refOscRef.current.stop() } catch { /* */ } }
+      for (const osc of refOscsRef.current) { try { osc.stop() } catch { /* */ } }
       if (sourceRef.current) sourceRef.current.disconnect()
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop())
       if (ctxRef.current) ctxRef.current.close().catch(() => {})
