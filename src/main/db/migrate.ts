@@ -89,6 +89,15 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_songs_sort_order ON songs(sort_order);
       `)
     }
+  },
+  {
+    version: 6,
+    run: (db) => {
+      db.exec(`
+        ALTER TABLE songs ADD COLUMN bpm INTEGER;
+        ALTER TABLE songs ADD COLUMN time_signature TEXT;
+      `)
+    }
   }
 ]
 

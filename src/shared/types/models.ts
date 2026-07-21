@@ -36,6 +36,8 @@ export interface SongRow {
   difficulty: number | null
   notes: string | null
   original_audio_url: string | null
+  bpm: number | null
+  time_signature: string | null
   date_added: string
   date_updated: string
   last_opened_at: string | null
@@ -144,6 +146,8 @@ export interface Song {
   difficulty: Difficulty | null
   notes: string | null
   originalAudioUrl: string | null
+  bpm: number | null
+  timeSignature: string | null
   dateAdded: string
   dateUpdated: string
   lastOpenedAt: string | null

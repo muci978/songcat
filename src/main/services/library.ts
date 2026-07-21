@@ -80,7 +80,9 @@ export function updateSong(id: string, input: UpdateSongInput): Song {
     isFavorite: input.isFavorite,
     difficulty: input.difficulty,
     notes: input.notes,
-    originalAudioUrl: input.originalAudioUrl
+    originalAudioUrl: input.originalAudioUrl,
+    bpm: input.bpm,
+    timeSignature: input.timeSignature
   })
   if (!row) throw notFound(`歌曲不存在：${id}`)
   if (input.originalAudioUrl !== undefined && input.originalAudioUrl) {

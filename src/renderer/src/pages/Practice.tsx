@@ -13,6 +13,8 @@ import { GuistudyViewer } from '../components/GuistudyViewer'
 import { ImageViewer } from '../components/ImageViewer'
 import { PdfViewer } from '../components/PdfViewer'
 import { SortPreviewModal } from '../components/SortPreviewModal'
+import { MetronomeCard } from '../components/MetronomeCard'
+import { useMetronome } from '../hooks/useMetronome'
 
 /** 计时器状态机 */
 type TimerPhase = 'idle' | 'running' | 'paused'
@@ -42,6 +44,18 @@ export default function Practice(): React.ReactElement {
   const chunksRef = useRef<Blob[]>([])
   const recordStartRef = useRef<number>(0)
   const [confirmDeleteRecording, setConfirmDeleteRecording] = useState(false)
+
+  // ---- 节拍器 ----
+  const metro = useMetronome({
+    initialBpm: 120,
+    initialTimeSignature: { beats: 4, unit: 4 }
+  })
+  const metroInitedRef = useRef(false)
+
+  // ---- 节拍器 BPM 持久化 ----
+  const bpmDirtyRef = useRef(false)
+  const pendingBpmRef = useRef<number | null>(null)
+  const pendingTsRef = useRef<string | null>(null)
 
   const saveAction = useAsyncAction()
   const importAction = useAsyncAction()
@@ -81,6 +95,13 @@ export default function Practice(): React.ReactElement {
         void api.practice.stopSession(sid, 'leave-score-view').catch(() => {})
         sessionIdRef.current = null
       }
+      // 持久化节拍器 BPM/拍号到歌曲
+      if (bpmDirtyRef.current) {
+        const patch: { bpm?: number | null; timeSignature?: string | null } = {}
+        if (pendingBpmRef.current !== undefined) patch.bpm = pendingBpmRef.current
+        if (pendingTsRef.current !== undefined) patch.timeSignature = pendingTsRef.current
+        void api.library.update(id, patch).catch(() => {})
+      }
     }
   }, [])
 
@@ -108,6 +129,7 @@ export default function Practice(): React.ReactElement {
       setPhase('running')
       startTick()
       startHeartbeat()
+      metro.play()
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -123,6 +145,7 @@ export default function Practice(): React.ReactElement {
         tickRef.current = null
       }
       setPhase('paused')
+      metro.stop()
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -135,6 +158,7 @@ export default function Practice(): React.ReactElement {
       await unwrap(api.practice.resumeSession(sid))
       startTick()
       setPhase('running')
+      metro.play()
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -156,6 +180,7 @@ export default function Practice(): React.ReactElement {
       sessionIdRef.current = null
       setElapsed(0)
       setPhase('idle')
+      metro.stop()
       toast.success('已结束本次练习')
       await reload()
     } catch (e) {
@@ -278,6 +303,16 @@ export default function Practice(): React.ReactElement {
 
   if (loading && !detail) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
+
+  // 首次加载 detail 后初始化节拍器 BPM/拍号
+  if (!metroInitedRef.current) {
+    metroInitedRef.current = true
+    if (detail.bpm) metro.setBpm(detail.bpm)
+    if (detail.timeSignature) {
+      const m = detail.timeSignature.match(/^(\d+)\/(\d+)$/)
+      if (m) metro.setTimeSignature({ beats: parseInt(m[1]!, 10), unit: parseInt(m[2]!, 10) })
+    }
+  }
 
   // 选择要展示的曲谱：URL assetId 优先；无则按主资源 → 有链接的 → 本地文件 → 外部链接兜底
   const primaryScore = detail.scores.find((s) => s.isPrimary)
@@ -432,6 +467,19 @@ export default function Practice(): React.ReactElement {
               </div>
             </div>
           </Card>
+
+          {/* 节拍器 */}
+          <MetronomeCard
+            metro={metro}
+            onBpmChange={(newBpm) => {
+              bpmDirtyRef.current = true
+              pendingBpmRef.current = newBpm
+            }}
+            onTimeSignatureChange={(newTs) => {
+              bpmDirtyRef.current = true
+              pendingTsRef.current = newTs
+            }}
+          />
 
           {/* 备注 */}
           <Card

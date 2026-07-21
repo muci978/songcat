@@ -35,6 +35,8 @@ export function rowToSong(r: SongRow): Song {
     difficulty: (r.difficulty ?? null) as Difficulty | null,
     notes: r.notes,
     originalAudioUrl: r.original_audio_url,
+    bpm: r.bpm ?? null,
+    timeSignature: r.time_signature ?? null,
     dateAdded: r.date_added,
     dateUpdated: r.date_updated,
     lastOpenedAt: r.last_opened_at,

@@ -182,6 +182,15 @@ export default function SongDetail(): React.ReactElement {
               </div>
             </div>
           )}
+          {detail.bpm && (
+            <div className="stat">
+              <div className="stat-label">节拍器</div>
+              <div className="stat-value" style={{ fontSize: 18 }}>
+                {detail.bpm} BPM
+                <span className="tag" style={{ marginLeft: 6 }}>{detail.timeSignature ?? '4/4'}</span>
+              </div>
+            </div>
+          )}
         </div>
         {detail.notes && (
           <div className="field" style={{ marginTop: 20, marginBottom: 0 }}>
@@ -596,6 +605,16 @@ function EditSongModal({
   const [difficulty, setDifficulty] = useState<Difficulty | null>(detail.difficulty)
   const [notes, setNotes] = useState(detail.notes ?? '')
   const [audio, setAudio] = useState(detail.originalAudioUrl ?? '')
+  const [bpm, setBpm] = useState(detail.bpm ?? 120)
+  const [bpmEnabled, setBpmEnabled] = useState(detail.bpm !== null)
+  const [tsBeats, setTsBeats] = useState(() => {
+    const m = (detail.timeSignature ?? '4/4').match(/^(\d+)\/(\d+)$/)
+    return m ? parseInt(m[1]!, 10) : 4
+  })
+  const [tsUnit, setTsUnit] = useState(() => {
+    const m = (detail.timeSignature ?? '4/4').match(/^(\d+)\/(\d+)$/)
+    return m ? parseInt(m[2]!, 10) : 4
+  })
   const action = useAsyncAction()
 
   // 每次 Modal 重新打开时，把表单重置为最新的 detail
@@ -608,6 +627,11 @@ function EditSongModal({
       setDifficulty(detail.difficulty)
       setNotes(detail.notes ?? '')
       setAudio(detail.originalAudioUrl ?? '')
+      setBpm(detail.bpm ?? 120)
+      setBpmEnabled(detail.bpm !== null)
+      const tsMatch = (detail.timeSignature ?? '4/4').match(/^(\d+)\/(\d+)$/)
+      setTsBeats(tsMatch ? parseInt(tsMatch[1]!, 10) : 4)
+      setTsUnit(tsMatch ? parseInt(tsMatch[2]!, 10) : 4)
     }
   }, [
     open,
@@ -617,7 +641,9 @@ function EditSongModal({
     detail.isFavorite,
     detail.difficulty,
     detail.notes,
-    detail.originalAudioUrl
+    detail.originalAudioUrl,
+    detail.bpm,
+    detail.timeSignature
   ])
 
   const submit = () =>
@@ -631,7 +657,9 @@ function EditSongModal({
           isFavorite,
           difficulty,
           notes: notes.trim() || null,
-          originalAudioUrl: audio.trim() || null
+          originalAudioUrl: audio.trim() || null,
+          bpm: bpmEnabled ? bpm : null,
+          timeSignature: bpmEnabled ? `${tsBeats}/${tsUnit}` : null
         })
       )
       toast.success('已保存')
@@ -697,6 +725,55 @@ function EditSongModal({
           value={audio}
           onChange={(e) => setAudio(e.target.value)}
         />
+      </div>
+      <div className="row" style={{ gap: 16, marginBottom: 12 }}>
+        <div className="field grow" style={{ margin: 0 }}>
+          <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 4 }}>
+            <label className="label" style={{ margin: 0 }}>BPM（节拍器）</label>
+            <label className="row" style={{ gap: 4, cursor: 'pointer', fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={bpmEnabled}
+                onChange={(e) => setBpmEnabled(e.target.checked)}
+              />
+              <span className="faint">启用</span>
+            </label>
+          </div>
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <input
+              className="input"
+              type="number"
+              min={40}
+              max={240}
+              value={bpm}
+              disabled={!bpmEnabled}
+              onChange={(e) => setBpm(Math.max(40, Math.min(240, parseInt(e.target.value, 10) || 120)))}
+              style={{ width: 80 }}
+            />
+            <span className="faint" style={{ fontSize: 13 }}>拍号</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={16}
+              value={tsBeats}
+              disabled={!bpmEnabled}
+              onChange={(e) => setTsBeats(Math.max(1, Math.min(16, parseInt(e.target.value, 10) || 4)))}
+              style={{ width: 56 }}
+            />
+            <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>/</span>
+            <input
+              className="input"
+              type="number"
+              min={1}
+              max={16}
+              value={tsUnit}
+              disabled={!bpmEnabled}
+              onChange={(e) => setTsUnit(Math.max(1, Math.min(16, parseInt(e.target.value, 10) || 4)))}
+              style={{ width: 56 }}
+            />
+          </div>
+        </div>
       </div>
       <div className="field">
         <label className="label">备注</label>

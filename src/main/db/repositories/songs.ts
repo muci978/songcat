@@ -42,6 +42,8 @@ export interface SongPatch {
   difficulty?: Difficulty | null
   notes?: string | null
   originalAudioUrl?: string | null
+  bpm?: number | null
+  timeSignature?: string | null
 }
 
 /** 列表查询所需的聚合子选择（score 数 / pdf / 录音 / 练习 / 总时长 / 最近练习）
@@ -256,6 +258,14 @@ export const songsRepository = {
     if (patch.originalAudioUrl !== undefined) {
       params.audio = patch.originalAudioUrl
       sets.push('original_audio_url = @audio')
+    }
+    if (patch.bpm !== undefined) {
+      params.bpm = patch.bpm
+      sets.push('bpm = @bpm')
+    }
+    if (patch.timeSignature !== undefined) {
+      params.timeSignature = patch.timeSignature
+      sets.push('time_signature = @timeSignature')
     }
 
     db.prepare(`UPDATE songs SET ${sets.join(', ')} WHERE id = @id`).run(params)

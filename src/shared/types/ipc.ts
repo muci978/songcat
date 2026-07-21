@@ -203,6 +203,8 @@ export interface CreateSongInput {
   difficulty?: Difficulty | null
   notes?: string | null
   originalAudioUrl?: string | null
+  bpm?: number | null
+  timeSignature?: string | null
 }
 
 export type UpdateSongInput = Partial<CreateSongInput>
