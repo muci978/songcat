@@ -3,8 +3,7 @@
  * 独立页面，从侧边栏导航进入
  * 功能：实时音高检测 + 音准指示器 + 参考音 + 调弦快捷按钮
  */
-import { useState } from 'react'
-import { useTuner, TUNER_PRESETS, type TunerPreset } from '../hooks/useTuner'
+import { useTuner, GUITAR_STANDARD } from '../hooks/useTuner'
 
 /* ------------------------------------------------------------------ */
 /* 音准指示器 — 半圆弧刻度                                               */
@@ -104,41 +103,11 @@ function describeArc(cx: number, cy: number, r: number, startAngle: number, endA
 }
 
 /* ------------------------------------------------------------------ */
-/* 调弦预设按钮                                                         */
-/* ------------------------------------------------------------------ */
-
-function PresetButtons({
-  preset,
-  onPlayString
-}: {
-  preset: TunerPreset
-  onPlayString: (note: string, octave: number) => void
-}): React.ReactElement {
-  return (
-    <div>
-      <div className="label" style={{ marginBottom: 8 }}>{preset.name}</div>
-      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        {preset.strings.map((s, i) => (
-          <button
-            key={i}
-            className="btn btn-sm tuner-string-btn"
-            onClick={() => onPlayString(s.note, s.octave)}
-          >
-            {s.note}{s.octave}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
 /* Tuner 页面                                                           */
 /* ------------------------------------------------------------------ */
 
 export default function Tuner(): React.ReactElement {
   const tuner = useTuner()
-  const [selectedPreset, setSelectedPreset] = useState<TunerPreset>(TUNER_PRESETS[0]!)
 
   const absCent = Math.abs(tuner.cent)
   const accuracyColor = absCent <= 5 ? 'var(--success)' : absCent <= 15 ? 'var(--warning)' : 'var(--danger)'
@@ -195,23 +164,20 @@ export default function Tuner(): React.ReactElement {
         )}
       </div>
 
-      {/* 调弦预设 */}
+      {/* 标准吉他调弦 */}
       <div style={{ width: '100%', maxWidth: 440 }}>
-        <div className="row" style={{ gap: 8, marginBottom: 16 }}>
-          {TUNER_PRESETS.map((p) => (
+        <div className="label" style={{ marginBottom: 8 }}>标准吉他调弦</div>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          {GUITAR_STANDARD.strings.map((s, i) => (
             <button
-              key={p.name}
-              className={`btn btn-sm ${selectedPreset.name === p.name ? 'btn-primary' : ''}`}
-              onClick={() => setSelectedPreset(p)}
+              key={i}
+              className="btn btn-sm tuner-string-btn"
+              onClick={() => tuner.playReference(s.note, s.octave)}
             >
-              {p.name}
+              {s.note}{s.octave}
             </button>
           ))}
         </div>
-        <PresetButtons
-          preset={selectedPreset}
-          onPlayString={(note, octave) => tuner.playReference(note, octave)}
-        />
       </div>
     </div>
   )

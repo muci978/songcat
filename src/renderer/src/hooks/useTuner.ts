@@ -111,17 +111,7 @@ export const GUITAR_STANDARD: TunerPreset = {
   ]
 }
 
-export const UKULELE_STANDARD: TunerPreset = {
-  name: '尤克里里',
-  strings: [
-    { note: 'G', octave: 4 },
-    { note: 'C', octave: 4 },
-    { note: 'E', octave: 4 },
-    { note: 'A', octave: 4 }
-  ]
-}
-
-export const TUNER_PRESETS: TunerPreset[] = [GUITAR_STANDARD, UKULELE_STANDARD]
+export const TUNER_PRESETS: TunerPreset[] = [GUITAR_STANDARD]
 
 export interface UseTunerReturn {
   active: boolean
