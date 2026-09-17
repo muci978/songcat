@@ -10,6 +10,9 @@ interface SettingsState {
   applyTheme: () => void
 }
 
+// 系统主题监听只注册一次（模块级），避免每次 load() 重复注册导致监听泄漏
+let mediaListenerRegistered = false
+
 export const useSettings = create<SettingsState>((set, get) => ({
   settings: null,
   load: async () => {
@@ -17,10 +20,13 @@ export const useSettings = create<SettingsState>((set, get) => ({
       const s = await unwrap(api.settings.get())
       set({ settings: s })
       get().applyTheme()
-      // 跟随系统主题变化（仅 theme=system 时由 applyTheme 重新判定）
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (get().settings?.theme === 'system') get().applyTheme()
-      })
+      // 跟随系统主题变化（仅 theme=system 时由 applyTheme 重新判定），只注册一次
+      if (!mediaListenerRegistered) {
+        mediaListenerRegistered = true
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+          if (get().settings?.theme === 'system') get().applyTheme()
+        })
+      }
     } catch {
       /* 忽略：UI 用默认主题 */
     }

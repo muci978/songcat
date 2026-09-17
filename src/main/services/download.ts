@@ -18,6 +18,9 @@ import { getSettings } from './settings'
 import type { DownloadJob, ScoreAsset, StartDownloadInput } from '@shared'
 import { blocked, networkErr, validation } from './errors'
 
+/** 单文件下载大小上限（100MB），防止超大响应导致内存暴涨 */
+const MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
+
 function filenameFromUrl(url: string): string {
   try {
     const u = new URL(url)
@@ -49,9 +52,10 @@ export async function startDownload(
     sourceName: sourceName ?? null
   })
   downloadJobsRepository.markStatus(job.id, 'running')
+  let tmpPath: string | undefined
   try {
     const settings = getSettings()
-    const tmpPath = join(getDownloadsCacheDir(), `${job.id}.tmp`)
+    tmpPath = join(getDownloadsCacheDir(), `${job.id}.tmp`)
     const { filename } = await downloadAndClassify(
       sourceUrl,
       tmpPath,
@@ -70,6 +74,8 @@ export async function startDownload(
     downloadJobsRepository.markStatus(job.id, 'completed', { targetAssetId: asset.id })
     return asset
   } catch (e) {
+    // 失败路径同样清理临时文件，避免 cache/downloads 残留
+    if (tmpPath) await safeUnlink(tmpPath)
     const message = (e as Error).message
     downloadJobsRepository.markStatus(job.id, 'failed', { errorMessage: message })
     // 返回 job，renderer 据此提示失败并可"保存链接"
@@ -101,7 +107,43 @@ async function downloadAndClassify(
     throw blocked('资源非 PDF/图片，可能需要登录、为付费内容或被反爬限制。可改为保存链接。')
   }
 
-  const buf = Buffer.from(await res.arrayBuffer())
+  // 优先用 content-length 预判，超限直接拒绝，避免下载超大文件
+  const declaredSize = Number(res.headers.get('content-length'))
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_DOWNLOAD_BYTES) {
+    throw validation(
+      `文件过大（约 ${Math.round(declaredSize / 1024 / 1024)}MB），超过 ${MAX_DOWNLOAD_BYTES / 1024 / 1024}MB 上限。`
+    )
+  }
+
+  // 流式读取并累加大小；content-length 缺失或不实时同样兜底限制内存占用
+  const buf = await readBodyCapped(res, MAX_DOWNLOAD_BYTES)
   await writeFile(destPath, buf)
   return { filename }
+}
+
+/** 流式读取响应体，累计超过 maxBytes 立即取消并抛错，避免一次性 arrayBuffer 内存暴涨 */
+async function readBodyCapped(res: Response, maxBytes: number): Promise<Buffer> {
+  const reader = res.body?.getReader()
+  if (!reader) {
+    // 无可读流，回退一次性读取并做事后校验
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (buf.byteLength > maxBytes) {
+      throw validation(`文件过大，超过 ${maxBytes / 1024 / 1024}MB 上限。`)
+    }
+    return buf
+  }
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {})
+      throw validation(`文件过大，超过 ${maxBytes / 1024 / 1024}MB 上限。`)
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
 }

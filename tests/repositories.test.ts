@@ -40,14 +40,14 @@ describe('songs repository', () => {
     songsRepository.create({ title: '简单爱' })
     songsRepository.create({ title: '青花瓷' })
     songsRepository.create({ title: 'Yesterday' })
-    expect(songsRepository.search({ text: 'jd' })).toHaveLength(1)
-    expect(songsRepository.search({ text: 'QH' })).toHaveLength(1)
-    expect(songsRepository.search({ text: 'y' })).toHaveLength(1) // Yesterday
+    expect(songsRepository.search({ text: 'jd' }).items).toHaveLength(1)
+    expect(songsRepository.search({ text: 'QH' }).items).toHaveLength(1)
+    expect(songsRepository.search({ text: 'y' }).items).toHaveLength(1) // Yesterday
   })
 
   it('search 按标题包含（中文）', () => {
     songsRepository.create({ title: '简单爱' })
-    expect(songsRepository.search({ text: '简单' })).toHaveLength(1)
+    expect(songsRepository.search({ text: '简单' }).items).toHaveLength(1)
   })
 
   it('search 按状态/收藏/艺人/难度/有无资源筛选', () => {
@@ -55,10 +55,10 @@ describe('songs repository', () => {
     const b = songsRepository.create({ title: 'B', status: 'learned', artist: 'Jay' })
     songsRepository.create({ title: 'C', status: 'to-learn' })
 
-    expect(songsRepository.search({ status: 'learning' })).toHaveLength(1)
-    expect(songsRepository.search({ isFavorite: true })).toHaveLength(1)
-    expect(songsRepository.search({ artist: 'jay' })).toHaveLength(1)
-    expect(songsRepository.search({ minDifficulty: 3 })).toHaveLength(1)
+    expect(songsRepository.search({ status: 'learning' }).items).toHaveLength(1)
+    expect(songsRepository.search({ isFavorite: true }).items).toHaveLength(1)
+    expect(songsRepository.search({ artist: 'jay' }).items).toHaveLength(1)
+    expect(songsRepository.search({ minDifficulty: 3 }).items).toHaveLength(1)
 
     // 给 A 加 PDF + 录音 + 练习
     assetsRepository.create({ songId: a.id, type: 'pdf' })
@@ -66,7 +66,7 @@ describe('songs repository', () => {
     const sess = practiceSessionsRepository.create({ songId: a.id, startedAt: nowIso() })
     practiceSessionsRepository.finish(sess.id, { endedAt: nowIso(), durationSeconds: 60, stopReason: 'manual' })
 
-    const withPdf = songsRepository.search({ hasPdf: true })
+    const withPdf = songsRepository.search({ hasPdf: true }).items
     expect(withPdf).toHaveLength(1)
     expect(withPdf[0].id).toBe(a.id)
     expect(withPdf[0].hasPdf).toBe(true)

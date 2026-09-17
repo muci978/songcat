@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { SongDetail, ScoreAsset, ImportFilePathInput } from '@shared'
+import type { SongDetail, ScoreAsset } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
 import { toast } from '../stores/toast'
@@ -21,7 +21,6 @@ type TimerPhase = 'idle' | 'running' | 'paused'
 
 export default function Practice(): React.ReactElement {
   const { id = '', assetId } = useParams<{ id: string; assetId?: string }>()
-  const navigate = useNavigate()
 
   const [detail, setDetail] = useState<SongDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -50,7 +49,7 @@ export default function Practice(): React.ReactElement {
     initialBpm: 120,
     initialTimeSignature: { beats: 4, unit: 4 }
   })
-  const metroInitedRef = useRef(false)
+  const metroInitedRef = useRef<string | null>(null)
 
   // ---- 节拍器 BPM 持久化 ----
   const bpmDirtyRef = useRef(false)
@@ -60,23 +59,44 @@ export default function Practice(): React.ReactElement {
   const saveAction = useAsyncAction()
   const importAction = useAsyncAction()
 
+  // 仅首次加载时显示 spinner，后续刷新静默更新，避免卸载曲谱查看器
+  const firstLoadRef = useRef(true)
   const reload = useCallback(async () => {
-    // 仅首次加载（detail 为 null）时显示 spinner，后续刷新静默更新，避免卸载曲谱查看器
-    if (!detail) setLoading(true)
+    if (firstLoadRef.current) setLoading(true)
     try {
       setDetail(await unwrap(api.library.getSong(id)))
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
       setLoading(false)
+      firstLoadRef.current = false
     }
-  }, [id, detail])
+  }, [id])
+
+  // 保存当前歌曲 id，供卸载清理使用（避免闭包捕获首帧的陈旧 id 而写错歌）
+  const idRef = useRef(id)
+  useEffect(() => {
+    idRef.current = id
+  }, [id])
 
   // 初次加载 + touch last_opened
   useEffect(() => {
     void reload()
     void api.library.touch(id).catch(() => {})
   }, [id, reload])
+
+  // 首次加载 detail（或切换歌曲）后初始化节拍器 BPM/拍号
+  useEffect(() => {
+    if (!detail) return
+    if (metroInitedRef.current === detail.id) return
+    metroInitedRef.current = detail.id
+    if (detail.bpm) metro.setBpm(detail.bpm)
+    if (detail.timeSignature) {
+      const m = detail.timeSignature.match(/^(\d+)\/(\d+)$/)
+      if (m) metro.setTimeSignature({ beats: parseInt(m[1]!, 10), unit: parseInt(m[2]!, 10) })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail?.id])
 
   // 清理所有 interval，并自动结束未完成的 session（设计 §10.2：离开曲谱页时自动结束）
   useEffect(() => {
@@ -95,12 +115,12 @@ export default function Practice(): React.ReactElement {
         void api.practice.stopSession(sid, 'leave-score-view').catch(() => {})
         sessionIdRef.current = null
       }
-      // 持久化节拍器 BPM/拍号到歌曲
+      // 持久化节拍器 BPM/拍号到歌曲（用 idRef 读取当前 id，避免写错歌；pending 初值为 null，判空须用 !== null）
       if (bpmDirtyRef.current) {
         const patch: { bpm?: number | null; timeSignature?: string | null } = {}
-        if (pendingBpmRef.current !== undefined) patch.bpm = pendingBpmRef.current
-        if (pendingTsRef.current !== undefined) patch.timeSignature = pendingTsRef.current
-        void api.library.update(id, patch).catch(() => {})
+        if (pendingBpmRef.current !== null) patch.bpm = pendingBpmRef.current
+        if (pendingTsRef.current !== null) patch.timeSignature = pendingTsRef.current
+        void api.library.update(idRef.current, patch).catch(() => {})
       }
     }
   }, [])
@@ -303,16 +323,6 @@ export default function Practice(): React.ReactElement {
 
   if (loading && !detail) return <Spinner />
   if (!detail) return <Empty>无法加载歌曲信息。</Empty>
-
-  // 首次加载 detail 后初始化节拍器 BPM/拍号
-  if (!metroInitedRef.current) {
-    metroInitedRef.current = true
-    if (detail.bpm) metro.setBpm(detail.bpm)
-    if (detail.timeSignature) {
-      const m = detail.timeSignature.match(/^(\d+)\/(\d+)$/)
-      if (m) metro.setTimeSignature({ beats: parseInt(m[1]!, 10), unit: parseInt(m[2]!, 10) })
-    }
-  }
 
   // 选择要展示的曲谱：URL assetId 优先；无则按主资源 → 有链接的 → 本地文件 → 外部链接兜底
   const primaryScore = detail.scores.find((s) => s.isPrimary)

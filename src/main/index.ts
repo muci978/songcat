@@ -10,10 +10,11 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { existsSync } from 'node:fs'
 import { LOCAL_ASSET_PROTOCOL, LOCAL_RECORDING_PROTOCOL } from '@shared'
-import { getDbPath, getLogsDir, initPaths } from './lib/paths'
+import { getDbPath, getLogsDir, initPaths, resolveLibraryPath } from './lib/paths'
 import { initLogger, logger } from './lib/logger'
 import { closeDatabase, getDb, initDatabase, isDbInitialized } from './db/connection'
 import { seedBuiltinSources } from './db/seed'
+import { normalizeLocalPaths } from './db/maintenance'
 import { registerIpc } from './ipc'
 import { recoverInterruptedSessions, stopAllActive } from './services/practice'
 import { assetsRepository, recordingsRepository } from './db/repositories'
@@ -103,20 +104,20 @@ function registerProtocolHandlers(): void {
   protocol.handle(LOCAL_ASSET_PROTOCOL, async (request) => {
     const id = new URL(request.url).host
     const row = assetsRepository.getById(id)
-    if (!row || !row.local_path || !existsSync(row.local_path)) {
-      return new Response('Not found', { status: 404 })
-    }
-    return net.fetch(pathToFileURL(row.local_path).toString())
+    if (!row || !row.local_path) return new Response('Not found', { status: 404 })
+    const filePath = resolveLibraryPath(row.local_path)
+    if (!existsSync(filePath)) return new Response('Not found', { status: 404 })
+    return net.fetch(pathToFileURL(filePath).toString())
   })
 
   // songcat-recording://<songId> → 该歌最新录音
   protocol.handle(LOCAL_RECORDING_PROTOCOL, async (request) => {
     const songId = new URL(request.url).host
     const row = recordingsRepository.getBySong(songId)
-    if (!row || !existsSync(row.local_path)) {
-      return new Response('Not found', { status: 404 })
-    }
-    return net.fetch(pathToFileURL(row.local_path).toString())
+    if (!row) return new Response('Not found', { status: 404 })
+    const filePath = resolveLibraryPath(row.local_path)
+    if (!existsSync(filePath)) return new Response('Not found', { status: 404 })
+    return net.fetch(pathToFileURL(filePath).toString())
   })
 }
 
@@ -144,6 +145,8 @@ if (!app.requestSingleInstanceLock()) {
       initLogger()
       initDatabase(getDbPath())
       seedBuiltinSources(getDb())
+      const normalized = normalizeLocalPaths()
+      if (normalized > 0) logger.info(`规范化 ${normalized} 条本地文件路径为相对存储`)
       const recovered = recoverInterruptedSessions()
       if (recovered > 0) logger.info(`启动恢复：补齐 ${recovered} 个未结束的练习会话`)
       registerProtocolHandlers()

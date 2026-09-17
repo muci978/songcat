@@ -21,6 +21,7 @@ import type {
 } from '@shared'
 import { getSongDir } from '../lib/paths'
 import { logger } from '../lib/logger'
+import { isHttpUrl } from '../utils'
 import { notFound } from './errors'
 
 export function searchSongs(q: SongSearchQuery = {}): PaginatedResult<SongSummary> {
@@ -121,6 +122,8 @@ export function getSongDetail(id: string): SongDetail {
 }
 
 function maybeAddAudioSourceLink(songId: string, url: string): void {
+  // 仅接受 http/https 链接（会成为可点击的原曲链接）；非法则跳过，不打断主流程
+  if (!isHttpUrl(url)) return
   const existing = sourceLinksRepository.findBySongAndUrl(songId, url)
   if (!existing) {
     sourceLinksRepository.create({

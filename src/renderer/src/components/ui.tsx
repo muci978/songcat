@@ -138,7 +138,7 @@ export function ConfirmDialog({
   message: React.ReactNode
   confirmText?: string
   danger?: boolean
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   onClose: () => void
 }): React.ReactElement {
   return (
@@ -153,8 +153,10 @@ export function ConfirmDialog({
           </button>
           <button
             className={`btn ${danger ? 'btn-danger' : 'btn-primary'}`}
-            onClick={() => {
-              onConfirm()
+            onClick={async () => {
+              // 等 onConfirm 完成再关闭：让 confirmText 的“…中”文案得以显示；
+              // 同步的 onConfirm（返回 void）会立即 resolve，行为与之前一致。
+              await onConfirm()
               onClose()
             }}
           >

@@ -151,7 +151,6 @@ export const GuistudyViewer = memo(function GuistudyViewer({ url, height, partit
           overflow: 'hidden',
         }}
       >
-        {/* @ts-expect-error Electron custom element */}
         <webview
           ref={wvRef as never}
           src={prevUrlRef.current}
@@ -159,7 +158,6 @@ export const GuistudyViewer = memo(function GuistudyViewer({ url, height, partit
           allowpopups={false}
           disablewebsecurity={false}
           nodeintegration={false}
-          nodeIntegration={false}
           useragent={MOBILE_USER_AGENT}
           webpreferences="contextIsolation=true, sandbox=true"
           style={{

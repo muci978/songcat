@@ -1,5 +1,5 @@
 /** Dashboard 页面（设计 §12）：统计卡片 + 趋势 + 占比图 + 最近练习 —— 明亮毛玻璃风格 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bar,
@@ -43,9 +43,7 @@ function getChartColors(isDark: boolean) {
           'rgba(236, 72, 153, 0.6)',
           'rgba(6, 182, 212, 0.6)',
         ],
-    pieStroke: isDark
-      ? ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4']
-      : ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'],
+    pieStroke: ['#f97316', '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#06b6d4'],
     barFill: isDark ? '#0ea5e9' : '#38bdf8',
     gridStroke: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
     axisFill: isDark ? '#78716c' : '#9ca3af',
@@ -81,7 +79,7 @@ export default function Dashboard(): React.ReactElement {
   const [trendPeriod, setTrendPeriod] = useState<'day' | 'month' | 'year'>('day')
   const [showShareModal, setShowShareModal] = useState(false)
   const { isDark } = useTheme()
-  const c = getChartColors(isDark)
+  const c = useMemo(() => getChartColors(isDark), [isDark])
 
   useEffect(() => {
     void (async () => {
@@ -308,7 +306,7 @@ export default function Dashboard(): React.ReactElement {
                     strokeWidth={2}
                     activeShape={false}
                   >
-                    {todaySongData.map((entry, i) => (
+                    {todaySongData.map((_, i) => (
                       <Cell
                         key={i}
                         fill={c.pieFill[i % c.pieFill.length]}
@@ -353,7 +351,7 @@ export default function Dashboard(): React.ReactElement {
                     strokeWidth={2}
                     activeShape={false}
                   >
-                    {todayArtistData.map((entry, i) => (
+                    {todayArtistData.map((_, i) => (
                       <Cell
                         key={i}
                         fill={c.pieFill[i % c.pieFill.length]}
@@ -398,7 +396,7 @@ export default function Dashboard(): React.ReactElement {
                     strokeWidth={2}
                     activeShape={false}
                   >
-                    {allArtistData.map((entry, i) => (
+                    {allArtistData.map((_, i) => (
                       <Cell
                         key={i}
                         fill={c.pieFill[i % c.pieFill.length]}

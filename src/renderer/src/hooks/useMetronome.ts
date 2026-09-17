@@ -115,10 +115,12 @@ function getClickType(beatIndex: number, ts: TimeSignature): ClickType {
 
 /** 计算每拍间隔（秒） */
 function beatInterval(bpm: number, ts: TimeSignature): number {
-  // unit=8 时 BPM 表示附点四分音符速度，每拍 = 3 个八分音符
-  if (ts.unit === 8) {
+  // 仅复合拍号（6/8、9/8、12/8）：BPM 表示附点四分音符速度，每拍 = 3 个八分音符
+  // 与 getClickType 的复合拍判断保持一致
+  if (ts.unit === 8 && ts.beats % 3 === 0 && ts.beats >= 6) {
     return 60 / bpm / 3
   }
+  // 其它拍号（含 4/8、5/8 等单拍号）：BPM 即拍号单位的每拍速度
   return 60 / bpm
 }
 
@@ -196,7 +198,9 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
         // 从最近一次调度的拍位和时间推算当前拍位
         const elapsed = ctx.currentTime - lastScheduledTimeRef.current
         const beatsElapsed = Math.floor(elapsed / interval)
-        const displayBeat = (lastScheduledBeatRef.current + beatsElapsed) % ts.beats
+        // 规范化负数取模，避免 beatsElapsed 为负时得到负拍位
+        const rawBeat = lastScheduledBeatRef.current + beatsElapsed
+        const displayBeat = ((rawBeat % ts.beats) + ts.beats) % ts.beats
         setCurrentBeat(displayBeat)
       }
       rafId = requestAnimationFrame(updateVisual)

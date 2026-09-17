@@ -43,6 +43,13 @@ const FFT_SIZE = 2048
 const MIN_FREQUENCY = 60
 const MAX_FREQUENCY = 1400
 
+/** 检测节流间隔（毫秒），约 30fps —— rAF 仍每帧继续，但不足该间隔就跳过重算 */
+const DETECT_INTERVAL_MS = 1000 / 30
+
+// 复用缓冲：避免每帧 new Float32Array 造成 GC 压力（长度固定为 FFT_SIZE）
+const timeDomainBuf = new Float32Array(FFT_SIZE)
+const correlationBuf = new Float32Array(FFT_SIZE)
+
 function detectPitch(buf: Float32Array, sampleRate: number): number | null {
   const SIZE = buf.length
 
@@ -53,8 +60,15 @@ function detectPitch(buf: Float32Array, sampleRate: number): number | null {
   rms = Math.sqrt(rms / SIZE)
   if (rms < 0.01) return null
 
-  const correlations = new Float32Array(SIZE)
-  for (let lag = 0; lag < SIZE; lag++) {
+  // 自相关只需算到 maxLag（对应 MIN_FREQUENCY），无需覆盖整个 SIZE：
+  // 把外层循环从 O(SIZE²) 降到 O(SIZE·maxLag)，maxLag≈735(44.1k)/800(48k)
+  const minLag = Math.floor(sampleRate / MAX_FREQUENCY)
+  const maxLag = Math.min(Math.floor(sampleRate / MIN_FREQUENCY), SIZE - 1)
+  // 抛物线插值需访问 bestLag+1，故多算一格
+  const corrLimit = Math.min(maxLag + 1, SIZE - 1)
+
+  const correlations = correlationBuf
+  for (let lag = 0; lag <= corrLimit; lag++) {
     let sum = 0
     for (let i = 0; i < SIZE - lag; i++) {
       sum += buf[i]! * buf[i + lag]!
@@ -62,15 +76,14 @@ function detectPitch(buf: Float32Array, sampleRate: number): number | null {
     correlations[lag] = sum
   }
 
+  // 跳过 lag=0 附近的主峰下降段（上界限制在 maxLag，避免读到复用缓冲的陈旧值）
   let firstDip = 0
-  while (firstDip < SIZE - 1 && correlations[firstDip + 1]! > correlations[firstDip]!) {
+  while (firstDip < maxLag && correlations[firstDip + 1]! > correlations[firstDip]!) {
     firstDip++
   }
 
   let bestLag = -1
   let bestCorr = -Infinity
-  const minLag = Math.floor(sampleRate / MAX_FREQUENCY)
-  const maxLag = Math.min(Math.floor(sampleRate / MIN_FREQUENCY), SIZE - 1)
 
   for (let lag = Math.max(firstDip + 1, minLag); lag <= maxLag; lag++) {
     if (correlations[lag]! > bestCorr) {
@@ -119,6 +132,7 @@ export interface UseTunerReturn {
   note: string | null
   octave: number | null
   cent: number
+  error: string | null
   start: () => void
   stop: () => void
   playReference: (note: string, octave: number) => void
@@ -133,6 +147,7 @@ export function useTuner(): UseTunerReturn {
   const [octave, setOctave] = useState<number | null>(null)
   const [cent, setCent] = useState(0)
   const [referencePlaying, setReferencePlaying] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const ctxRef = useRef<AudioContext | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -151,6 +166,8 @@ export function useTuner(): UseTunerReturn {
   const smoothFreqRef = useRef<number | null>(null)
   // 信号丢失计数：连续 N 帧无信号才清空，避免闪烁
   const silenceCountRef = useRef(0)
+  // 上次真正执行检测的时间戳（用于节流到约 30fps）
+  const lastDetectRef = useRef(0)
 
   /** 滑动窗口大小（帧数） */
   const WINDOW = 8
@@ -161,14 +178,21 @@ export function useTuner(): UseTunerReturn {
   const detect = useCallback(() => {
     if (!activeRef.current) return
 
+    // 节流到约 30fps：距上次检测不足 ~33ms 则跳过重算，仅继续 rAF 保持循环
+    const nowMs = performance.now()
+    if (nowMs - lastDetectRef.current < DETECT_INTERVAL_MS) {
+      rafRef.current = requestAnimationFrame(detect)
+      return
+    }
+    lastDetectRef.current = nowMs
+
     const analyser = analyserRef.current
     const ctx = ctxRef.current
     if (!analyser || !ctx) return
 
-    const buf = new Float32Array(analyser.fftSize)
-    analyser.getFloatTimeDomainData(buf)
+    analyser.getFloatTimeDomainData(timeDomainBuf)
 
-    const rawFreq = detectPitch(buf, ctx.sampleRate)
+    const rawFreq = detectPitch(timeDomainBuf, ctx.sampleRate)
 
     if (rawFreq !== null && rawFreq >= MIN_FREQUENCY && rawFreq <= MAX_FREQUENCY) {
       silenceCountRef.current = 0
@@ -189,13 +213,11 @@ export function useTuner(): UseTunerReturn {
 
       // 统计窗口内最多的音符
       const counts: Record<string, number> = {}
-      let bestKey = key
       let bestCount = 0
       for (const k of recentNotesRef.current) {
         counts[k] = (counts[k] || 0) + 1
         if (counts[k]! > bestCount) {
           bestCount = counts[k]!
-          bestKey = k
         }
       }
 
@@ -224,12 +246,15 @@ export function useTuner(): UseTunerReturn {
 
   /* ---- start / stop ---- */
   const start = useCallback(async () => {
+    setError(null)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
 
-      const ctx = new AudioContext()
+      // 复用已存在的 AudioContext（如先前 playReference 创建的），避免覆盖旧 ctx 造成泄漏
+      const ctx = ctxRef.current ?? new AudioContext()
       ctxRef.current = ctx
+      if (ctx.state === 'suspended') void ctx.resume()
 
       const source = ctx.createMediaStreamSource(stream)
       sourceRef.current = source
@@ -243,13 +268,27 @@ export function useTuner(): UseTunerReturn {
       smoothFreqRef.current = null
       recentNotesRef.current = []
       silenceCountRef.current = 0
+      lastDetectRef.current = 0
 
       activeRef.current = true
       setActive(true)
       rafRef.current = requestAnimationFrame(detect)
-    } catch {
+    } catch (e) {
       activeRef.current = false
       setActive(false)
+      // 释放可能已获取的音频流，避免残留占用
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+      }
+      const err = e as DOMException
+      if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+        setError('麦克风权限被拒绝，请在系统设置中允许访问麦克风后重试')
+      } else if (err && (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError')) {
+        setError('未检测到麦克风设备，请连接麦克风后重试')
+      } else {
+        setError(`无法访问麦克风：${err?.message || '未知错误'}`)
+      }
     }
   }, [detect])
 
@@ -282,6 +321,7 @@ export function useTuner(): UseTunerReturn {
     setNote(null)
     setOctave(null)
     setCent(0)
+    setError(null)
   }, [])
 
   /* ---- 参考音：模拟钢弦吉他拨弦 ---- */
@@ -397,6 +437,7 @@ export function useTuner(): UseTunerReturn {
     note,
     octave,
     cent,
+    error,
     start,
     stop,
     playReference,

@@ -3,11 +3,14 @@
  * - 每个通道对应一个 service / repo 调用，统一用 handle() 包装为 IpcResult。
  * - AppError 映射为结构化 IpcError；其他异常归为 INTERNAL。
  */
+import { existsSync } from 'node:fs'
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { IPC, type ErrorCode, type IpcResult } from '@shared'
-import { isAppError } from '../services/errors'
+import { isAppError, validation } from '../services/errors'
 import { assetsRepository } from '../db/repositories'
 import { getLogsDir, getPathInfo, writeCustomDataDir, removeCustomDataDir } from '../lib/paths'
+import { logger } from '../lib/logger'
+import { isHttpUrl } from '../utils'
 import * as libraryService from '../services/library'
 import * as assetService from '../services/asset'
 import * as sourcesService from '../services/sources'
@@ -31,8 +34,9 @@ async function handle<T>(fn: () => T | Promise<T>): Promise<IpcResult<T>> {
     if (isAppError(e)) {
       return { ok: false, error: { code: e.code, message: e.message, details: e.details } }
     }
-    const message = e instanceof Error ? e.message : String(e)
-    return { ok: false, error: { code: 'INTERNAL' as ErrorCode, message: message || 'Internal error' } }
+    // 非 AppError：真实错误信息/栈可能含绝对路径，仅记日志；渲染端只收到通用文案
+    logger.error('IPC handler 内部错误', e)
+    return { ok: false, error: { code: 'INTERNAL' as ErrorCode, message: '内部错误，请查看日志' } }
   }
 }
 
@@ -176,12 +180,15 @@ export function registerIpc(): void {
   /* ---------------- system ---------------- */
   ipcMain.handle(IPC.system.openExternal, (_e, url) =>
     handle(async () => {
+      // 白名单：仅允许 http/https，拒绝 javascript:/file: 等危险协议
+      if (!isHttpUrl(url)) throw validation('无效链接：仅允许 http/https')
       await shell.openExternal(url)
       return true
     })
   )
   ipcMain.handle(IPC.system.openPath, (_e, p) =>
     handle(async () => {
+      if (typeof p !== 'string' || !p || !existsSync(p)) throw validation('路径无效或不存在')
       await shell.openPath(p)
       return true
     })

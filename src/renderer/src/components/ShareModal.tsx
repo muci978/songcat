@@ -90,6 +90,11 @@ export function ShareModal({ open, stats, goal, onClose }: ShareModalProps): Rea
         const dataUrl = await generateImage()
         const result = await api.share.saveShareImage(dataUrl)
         if (!result.ok) throw new Error(result.error.message)
+        // path 为 null = 用户取消保存对话框，静默关闭，不提示成功
+        if (!result.data.path) {
+          onClose()
+          return
+        }
         toast.success(`已保存到 ${result.data.path}`)
         onClose()
       } finally {

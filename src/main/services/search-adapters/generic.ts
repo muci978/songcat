@@ -3,13 +3,48 @@
  * 使用 searchUrlTemplate 拼接 URL，隐藏窗口加载 + 通用 DOM 提取。
  * 当前为占位实现，后续根据具体站点优化提取逻辑。
  */
-import type { BrowserWindow } from 'electron'
 import { ResourceSourcePolicy } from '@shared'
 import type { ResourceSource } from '@shared'
 import type { SearchAdapter, AdapterSearchResult } from './types'
+import { networkErr } from '../errors'
 
 const CHROME_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+/** 页面导航超时（ms）：站点无响应时不永久挂起 */
+const NAV_TIMEOUT_MS = 8000
+
+/** 结构类型：仅需 loadURL/isDestroyed/destroy，避免引入 BrowserWindow 类型依赖 */
+interface TimeoutLoadable {
+  loadURL(url: string): Promise<unknown>
+  isDestroyed(): boolean
+  destroy(): void
+}
+
+/**
+ * loadURL 加导航超时：超时则销毁窗口并抛 networkErr，
+ * 避免站点不响应导致 Promise 永久挂起 + 隐藏窗口泄漏。
+ */
+async function loadUrlWithTimeout(
+  win: TimeoutLoadable,
+  url: string,
+  timeoutMs: number,
+  label: string
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      win.loadURL(url),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          if (!win.isDestroyed()) win.destroy()
+          reject(networkErr(`「${label}」页面加载超时（${timeoutMs}ms）`))
+        }, timeoutMs)
+      })
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
 
 /** 通用 DOM 提取：找所有外部链接 + 父容器文本 + 图片 */
 const GENERIC_DOM_EXTRACT = `(() => {
@@ -64,7 +99,7 @@ export class GenericAdapter implements SearchAdapter {
     win.webContents.setUserAgent(CHROME_UA)
 
     try {
-      await win.loadURL(searchUrl)
+      await loadUrlWithTimeout(win, searchUrl, NAV_TIMEOUT_MS, this.sourceName)
       // 等待页面渲染
       await new Promise((r) => setTimeout(r, 2000))
 
@@ -99,7 +134,7 @@ export class GenericAdapter implements SearchAdapter {
       }
       return out
     } finally {
-      win.destroy()
+      if (!win.isDestroyed()) win.destroy()
     }
   }
 }

@@ -164,6 +164,22 @@ export default function Tuner(): React.ReactElement {
         )}
       </div>
 
+      {/* 麦克风错误提示 */}
+      {tuner.error && (
+        <div
+          style={{
+            color: 'var(--danger)',
+            fontSize: 13,
+            textAlign: 'center',
+            maxWidth: 440,
+            marginTop: -20,
+            marginBottom: 24
+          }}
+        >
+          {tuner.error}
+        </div>
+      )}
+
       {/* 标准吉他调弦 */}
       <div style={{ width: '100%', maxWidth: 440 }}>
         <div className="label" style={{ marginBottom: 8 }}>标准吉他调弦</div>

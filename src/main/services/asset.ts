@@ -9,7 +9,7 @@ import { dialog, nativeImage, shell } from 'electron'
 import { assetsRepository, sourceLinksRepository } from '../db/repositories'
 import { classifyScoreFile, extensionFor, hashFile, hostOf, isHttpUrl } from '../utils'
 import { copyFileInto, safeUnlink, uniqueFilename } from '../lib/filestore'
-import { ensureSongDirs, getSongImagesDir, getSongScoresDir } from '../lib/paths'
+import { ensureSongDirs, getSongImagesDir, getSongScoresDir, resolveLibraryPath, toLibraryRelative } from '../lib/paths'
 import { newId } from '../utils/id'
 import type { AddScoreLinkInput, ImportFilePathInput, ScoreAsset } from '@shared'
 import { notFound, unsupported, validation } from './errors'
@@ -122,7 +122,7 @@ export async function importFilePath(input: ImportFilePathInput): Promise<ScoreA
     songId,
     type,
     title: input.title ?? stripExt(filename),
-    localPath: stored.path,
+    localPath: toLibraryRelative(stored.path),
     sourceUrl: input.sourceUrl ?? null,
     sourceName: input.sourceName ?? null,
     sourcePolicy: input.sourcePolicy ?? 'user-imported',
@@ -190,14 +190,14 @@ export async function removeAsset(assetId: string): Promise<boolean> {
   const row = assetsRepository.getById(assetId)
   if (!row) return false
   const ok = assetsRepository.delete(assetId)
-  if (ok && row.local_path) await safeUnlink(row.local_path)
+  if (ok && row.local_path) await safeUnlink(resolveLibraryPath(row.local_path))
   return ok
 }
 
 export async function openLocalFolder(assetId: string): Promise<void> {
   const row = assetsRepository.getById(assetId)
   if (!row || !row.local_path) throw notFound(`本地文件不存在：${assetId}`)
-  shell.showItemInFolder(row.local_path)
+  shell.showItemInFolder(resolveLibraryPath(row.local_path))
 }
 
 function stripExt(name: string): string {

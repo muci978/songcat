@@ -457,8 +457,8 @@ export interface UpdaterApi {
 }
 
 export interface ShareApi {
-  /** 弹出保存对话框，将图片保存到用户指定路径 */
-  saveShareImage(dataUrl: string): Promise<IpcResult<{ path: string }>>
+  /** 弹出保存对话框，将图片保存到用户指定路径。path 为 null 表示用户取消 */
+  saveShareImage(dataUrl: string): Promise<IpcResult<{ path: string | null }>>
   /** 将图片复制到系统剪贴板 */
   copyShareImage(dataUrl: string): Promise<IpcResult<boolean>>
 }

@@ -79,34 +79,6 @@ function useSongList(): { songs: SongSummary[]; loading: boolean } {
   return { songs, loading }
 }
 
-function SongSelect({
-  songs,
-  value,
-  onChange
-}: {
-  songs: SongSummary[]
-  value: string
-  onChange: (id: string) => void
-}): React.ReactElement {
-  if (songs.length === 0) {
-    return <Empty>先到曲库新建歌曲，才能把曲谱或链接关联到歌曲。</Empty>
-  }
-  return (
-    <select
-      className="select"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">请选择歌曲…</option>
-      {songs.map((s) => (
-        <option key={s.id} value={s.id}>
-          {s.title} — {s.artist ?? '未知艺人'}
-        </option>
-      ))}
-    </select>
-  )
-}
-
 /* ------------------------------------------------------------------ */
 /* Tab 1：手动导入                                                       */
 /* ------------------------------------------------------------------ */
@@ -287,7 +259,10 @@ function SourceSearchPanel({ source }: { source: ResourceSource }): React.ReactE
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<FreeSourceSearchResult[] | null>(null)
   const [searching, setSearching] = useState(false)
-  const busyRef = useRef<Record<string, boolean>>({})
+  // 进行中的入库 URL 集合：驱动按钮 disabled 与文案（用 state 保证重渲染）
+  const [busyUrls, setBusyUrls] = useState<Set<string>>(new Set())
+  // 搜索请求序号：避免快速二次搜索时旧结果覆盖新结果
+  const searchReqRef = useRef(0)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewTitle, setPreviewTitle] = useState('')
   const [renameTarget, setRenameTarget] = useState<{
@@ -303,20 +278,24 @@ function SourceSearchPanel({ source }: { source: ResourceSource }): React.ReactE
       toast.error('请输入搜索关键词')
       return
     }
+    const reqId = ++searchReqRef.current
     setSearching(true)
     setResults(null)
     try {
-      setResults(await unwrap(api.sources.searchFreeSources(q, source.id)))
+      const res = await unwrap(api.sources.searchFreeSources(q, source.id))
+      if (reqId !== searchReqRef.current) return // 已有更新的搜索，丢弃旧结果
+      setResults(res)
     } catch (e) {
+      if (reqId !== searchReqRef.current) return
       toast.error((e as Error).message)
     } finally {
-      setSearching(false)
+      if (reqId === searchReqRef.current) setSearching(false)
     }
   }
 
   const importToLibrary = async (r: FreeSourceSearchResult) => {
-    if (busyRef[r.url]) return
-    busyRef[r.url] = true
+    if (busyUrls.has(r.url)) return
+    setBusyUrls((prev) => new Set(prev).add(r.url))
     try {
       const song = await unwrap(api.library.findOrCreate(r.title, r.artist ?? undefined))
       await unwrap(
@@ -332,7 +311,11 @@ function SourceSearchPanel({ source }: { source: ResourceSource }): React.ReactE
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
-      busyRef[r.url] = false
+      setBusyUrls((prev) => {
+        const next = new Set(prev)
+        next.delete(r.url)
+        return next
+      })
     }
   }
 
@@ -402,10 +385,10 @@ function SourceSearchPanel({ source }: { source: ResourceSource }): React.ReactE
                 </button>
                 <button
                   className="btn btn-sm btn-primary"
-                  disabled={busyRef[r.url]}
+                  disabled={busyUrls.has(r.url)}
                   onClick={() => void importToLibrary(r)}
                 >
-                  {busyRef[r.url] ? '入库中…' : '一键入库'}
+                  {busyUrls.has(r.url) ? '入库中…' : '一键入库'}
                 </button>
               </div>
             </Card>
@@ -442,7 +425,10 @@ function AiTab(): React.ReactElement {
   const [searching, setSearching] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewTitle, setPreviewTitle] = useState('')
-  const [previewLoading, setPreviewLoading] = useState(false)
+  // 正在预览的候选下标：按候选区分，避免点一个预览禁用全部
+  const [previewLoadingIndex, setPreviewLoadingIndex] = useState<number | null>(null)
+  // 搜索请求序号：避免快速二次搜索时旧结果覆盖新结果
+  const searchReqRef = useRef(0)
   const [renameTarget, setRenameTarget] = useState<{
     songId: string; title: string; artist: string | null
   } | null>(null)
@@ -467,13 +453,17 @@ function AiTab(): React.ReactElement {
       toast.error('请输入搜索内容')
       return
     }
+    const reqId = ++searchReqRef.current
     setSearching(true)
     try {
-      setCandidates(await unwrap(api.ai.searchCandidates({ query: q })))
+      const res = await unwrap(api.ai.searchCandidates({ query: q }))
+      if (reqId !== searchReqRef.current) return // 已有更新的搜索，丢弃旧结果
+      setCandidates(res)
     } catch (e) {
+      if (reqId !== searchReqRef.current) return
       toast.error((e as Error).message)
     } finally {
-      setSearching(false)
+      if (reqId === searchReqRef.current) setSearching(false)
     }
   }
 
@@ -485,8 +475,8 @@ function AiTab(): React.ReactElement {
     }
   }
 
-  const handlePreview = async (c: AiCandidate) => {
-    setPreviewLoading(true)
+  const handlePreview = async (c: AiCandidate, index: number) => {
+    setPreviewLoadingIndex(index)
     setPreviewTitle(c.title)
     try {
       if (!guistudySourceId) { setPreviewUrl(null); return }
@@ -500,7 +490,7 @@ function AiTab(): React.ReactElement {
     } catch {
       setPreviewUrl(null)
     } finally {
-      setPreviewLoading(false)
+      setPreviewLoadingIndex(null)
     }
   }
 
@@ -586,10 +576,10 @@ function AiTab(): React.ReactElement {
                 <div className="row" style={{ gap: 8 }}>
                   <button
                     className="btn btn-sm"
-                    disabled={previewLoading}
-                    onClick={() => void handlePreview(c)}
+                    disabled={previewLoadingIndex === i}
+                    onClick={() => void handlePreview(c, i)}
                   >
-                    {previewLoading ? '搜索中…' : '预览'}
+                    {previewLoadingIndex === i ? '搜索中…' : '预览'}
                   </button>
                   <button
                     className="btn btn-sm btn-primary"
@@ -649,7 +639,7 @@ function AiTab(): React.ReactElement {
       )}
 
       <ScorePreviewModal
-        open={previewUrl !== null || (previewTitle !== '' && previewLoading)}
+        open={previewUrl !== null || (previewTitle !== '' && previewLoadingIndex !== null)}
         url={previewUrl}
         title={previewTitle}
         onClose={() => { setPreviewUrl(null); setPreviewTitle('') }}

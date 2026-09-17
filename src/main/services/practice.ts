@@ -12,15 +12,27 @@
 import { getDb } from '../db/connection'
 import { practiceSessionsRepository } from '../db/repositories'
 import type { PracticeStopReason } from '@shared'
-import { MAX_RECOVERY_SESSION_MINUTES } from '@shared'
+import { MAX_RECOVERY_SESSION_MINUTES, HEARTBEAT_INTERVAL_MS } from '@shared'
 import { nowIso } from '../utils'
 import { logger } from '../lib/logger'
 
 const MAX_SESSION_SECONDS = MAX_RECOVERY_SESSION_MINUTES * 60
+/**
+ * 单个计时段（自上次心跳/恢复起点起）可并入的时长上限 = 2×心跳周期（30s → 60s）。
+ * 心跳每 30s 刷新段起点，正常段 ≤30s；机器睡眠/挂起时定时器不触发，
+ * 唤醒后单段 delta 可能是整段睡眠时长，原样累加会把睡眠误计入练习时长，故封顶。
+ * heartbeat / pauseSession / finishInternal 三处并入段时长时统一走此上限，保持一致。
+ */
+const MAX_SEGMENT_DELTA_SECONDS = (HEARTBEAT_INTERVAL_MS / 1000) * 2
 
 function elapsedSeconds(fromIso: string, toIso: string): number {
   const ms = Date.parse(toIso) - Date.parse(fromIso)
   return ms > 0 ? Math.floor(ms / 1000) : 0
+}
+
+/** 当前计时段可信并入的时长（封顶，避免把睡眠/挂起计入练习） */
+function trustedSegmentSeconds(fromIso: string, toIso: string): number {
+  return Math.min(elapsedSeconds(fromIso, toIso), MAX_SEGMENT_DELTA_SECONDS)
 }
 
 export function startSession(songId: string): { sessionId: string } {
@@ -36,7 +48,7 @@ export function heartbeat(sessionId: string): void {
   const s = practiceSessionsRepository.getById(sessionId)
   if (!s || s.ended_at || !s.last_heartbeat_at) return
   const now = nowIso()
-  const delta = elapsedSeconds(s.last_heartbeat_at, now)
+  const delta = trustedSegmentSeconds(s.last_heartbeat_at, now)
   getDb()
     .prepare(
       'UPDATE practice_sessions SET duration_seconds = duration_seconds + ?, last_heartbeat_at = ? WHERE id = ?'
@@ -48,7 +60,7 @@ export function pauseSession(sessionId: string): void {
   const s = practiceSessionsRepository.getById(sessionId)
   if (!s || s.ended_at || !s.last_heartbeat_at) return
   const now = nowIso()
-  const delta = elapsedSeconds(s.last_heartbeat_at, now)
+  const delta = trustedSegmentSeconds(s.last_heartbeat_at, now)
   getDb()
     .prepare(
       'UPDATE practice_sessions SET duration_seconds = duration_seconds + ?, last_heartbeat_at = NULL WHERE id = ?'
@@ -83,7 +95,7 @@ function finishInternal(sessionId: string, reason: PracticeStopReason, now: stri
   if (!s || s.ended_at) return
   let duration = s.duration_seconds
   if (s.last_heartbeat_at) {
-    duration += elapsedSeconds(s.last_heartbeat_at, now)
+    duration += trustedSegmentSeconds(s.last_heartbeat_at, now)
   }
   practiceSessionsRepository.finish(sessionId, {
     endedAt: now,

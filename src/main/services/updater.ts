@@ -25,10 +25,17 @@ interface GitHubRelease {
 /**
  * 比较两个 semver 版本号。
  * 返回：>0 表示 a > b，0 表示相等，<0 表示 a < b。
+ * 会先剥离 `-beta`/`+build` 等预发布/构建后缀，避免 Number 解析出 NaN。
  */
 function compareSemver(a: string, b: string): number {
-  const pa = a.replace(/^v/, '').split('.').map(Number)
-  const pb = b.replace(/^v/, '').split('.').map(Number)
+  const parse = (v: string): number[] =>
+    v
+      .replace(/^v/, '')
+      .split(/[-+]/)[0] // 去掉 -beta / +build 等后缀
+      .split('.')
+      .map((n) => Number(n) || 0)
+  const pa = parse(a)
+  const pb = parse(b)
   for (let i = 0; i < 3; i++) {
     if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0)
   }
@@ -80,7 +87,12 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     throw networkErr(`GitHub API 返回 HTTP ${res.status}`)
   }
 
-  const release = (await res.json()) as GitHubRelease
+  const release = (await res.json()) as Partial<GitHubRelease>
+
+  // 校验关键字段：缺 tag_name 说明响应异常，避免后续 .replace 抛 TypeError
+  if (typeof release?.tag_name !== 'string' || !release.tag_name) {
+    throw networkErr('GitHub API 返回数据缺少版本号（tag_name）。')
+  }
 
   // 跳过 draft 和 prerelease
   if (release.draft || release.prerelease) {
@@ -100,8 +112,8 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     latestVersion,
     currentVersion,
     hasUpdate,
-    releaseUrl: release.html_url,
+    releaseUrl: release.html_url ?? GITHUB_RELEASES_PAGE,
     releaseNotes: release.body ?? '',
-    publishedAt: release.published_at
+    publishedAt: release.published_at ?? ''
   }
 }

@@ -8,7 +8,7 @@ import { readdir, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { getDb } from '../db/connection'
 import { downloadJobsRepository, practiceSessionsRepository, songsRepository } from '../db/repositories'
-import { getDownloadsCacheDir, getLibraryRoot } from '../lib/paths'
+import { getDownloadsCacheDir, getLibraryRoot, resolveLibraryPath } from '../lib/paths'
 import { recoverInterruptedSessions } from './practice'
 import type { HealthReport } from '@shared'
 
@@ -24,7 +24,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
     )
     .all() as { asset_id: string; song_id: string; local_path: string; title: string | null }[]
   const missingScoreFiles = assets
-    .filter((a) => !existsSync(a.local_path))
+    .filter((a) => !existsSync(resolveLibraryPath(a.local_path)))
     .map((a) => ({ assetId: a.asset_id, songId: a.song_id, title: a.title ?? '(已删除)' }))
 
   // 2. recordings 文件是否存在
@@ -35,7 +35,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
     )
     .all() as { song_id: string; local_path: string; title: string | null }[]
   const missingRecordings = recs
-    .filter((r) => !existsSync(r.local_path))
+    .filter((r) => !existsSync(resolveLibraryPath(r.local_path)))
     .map((r) => ({ songId: r.song_id, title: r.title ?? '(已删除)' }))
 
   // 3. 未完成 download jobs
@@ -117,7 +117,7 @@ export async function runHealthCheck(): Promise<HealthReport> {
   // 收集 DB 中所有 score_assets 的 local_path（相对路径或绝对路径）
   const knownScorePaths = new Set(
     (db.prepare('SELECT local_path FROM score_assets WHERE local_path IS NOT NULL').all() as { local_path: string }[])
-      .map((r) => r.local_path)
+      .map((r) => resolveLibraryPath(r.local_path))
   )
   try {
     const songDirs = await readdir(songsDir)

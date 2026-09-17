@@ -1,5 +1,5 @@
 /** Settings 页面（设计 §13.4、§6、§8、§15）：曲库 / 资源站 / 搜索 / DeepSeek / 外观 / 关于 */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type {
   AppSettings,
   HealthReport,
@@ -50,21 +50,35 @@ export default function Settings(): React.ReactElement {
   }
 
   useEffect(() => {
-    void reloadSources()
+    // cancelled 守卫：组件卸载后不再 setState，避免竞态与无效更新
+    let cancelled = false
     void (async () => {
       try {
-        setPathInfo(await unwrap(api.system.getPathInfo()))
+        const list = await unwrap(api.sources.list())
+        if (!cancelled) setSources(list)
       } catch (e) {
-        toast.error((e as Error).message)
+        if (!cancelled) toast.error((e as Error).message)
       }
     })()
     void (async () => {
       try {
-        setAppVersion(await unwrap(api.system.appVersion()))
+        const info = await unwrap(api.system.getPathInfo())
+        if (!cancelled) setPathInfo(info)
+      } catch (e) {
+        if (!cancelled) toast.error((e as Error).message)
+      }
+    })()
+    void (async () => {
+      try {
+        const v = await unwrap(api.system.appVersion())
+        if (!cancelled) setAppVersion(v)
       } catch {
         /* 版本号缺失不致命 */
       }
     })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   if (!settings) return <Spinner />
@@ -746,28 +760,33 @@ function DeepSeekCard({
 /* ------------------------------------------------------------------ */
 
 function GoalSettingCard(): React.ReactElement {
-  const [goal, setGoal] = useState<{ targetSeconds: number } | null>(null)
   const [minutes, setMinutes] = useState(30)
   const [saved, setSaved] = useState(false)
   const action = useAsyncAction()
+  // “已保存”提示定时器：卸载时清理，避免卸载后 setState
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     void (async () => {
       try {
         const g = await unwrap(api.goals.getToday())
-        setGoal(g)
-        setMinutes(Math.round(g.targetSeconds / 60))
+        if (!cancelled) setMinutes(Math.round(g.targetSeconds / 60))
       } catch { /* ignore */ }
     })()
+    return () => {
+      cancelled = true
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+    }
   }, [])
 
   const save = () =>
     action.run(async () => {
       const sec = Math.max(1, minutes) * 60
       await unwrap(api.goals.setToday(sec))
-      setGoal({ targetSeconds: sec })
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
+      savedTimerRef.current = setTimeout(() => setSaved(false), 2000)
     }, '已保存')
 
   return (

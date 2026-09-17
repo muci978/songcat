@@ -184,7 +184,9 @@ export default function Library(): React.ReactElement {
     })
   }, [sorted])
 
-  // 可用字母基于全量歌曲（不受当前筛选影响）
+  // 可用字母基于当前已加载的歌曲（分页 + 当前筛选后的结果，随无限滚动逐步补全）。
+  // 注意：并非全库全量——尚未加载的分页里的首字母不会出现在索引中。
+  // 真正的“全量字母索引”需要后端提供 distinct 首字母接口配合，此处不越界改后端。
   const availableLetters = useMemo(() => {
     const s = new Set(songs.map(groupInitial))
     return [...s].sort((a, b) => (a === '#' ? 1 : b === '#' ? -1 : cmpStr(a, b)))
@@ -340,11 +342,18 @@ export default function Library(): React.ReactElement {
       ) : songs.length === 0 ? (
         <Empty>曲库为空，或没有匹配的歌曲。去"添加/搜索"页搜索入库吧。</Empty>
       ) : view === 'alpha' ? (
-        <AlphabetIndex
-          letters={availableLetters}
-          activeLetter={letterFilter}
-          onPick={(ch) => setLetterFilter((prev) => (prev === ch ? null : ch))}
-        />
+        <>
+          <AlphabetIndex
+            letters={availableLetters}
+            activeLetter={letterFilter}
+            onPick={(ch) => setLetterFilter((prev) => (prev === ch ? null : ch))}
+          />
+          {songs.length < total && (
+            <div className="hint" style={{ marginBottom: 16, fontSize: 12 }}>
+              字母索引基于已加载的 {songs.length} / {total} 首歌曲，向下滚动加载更多后会更完整。
+            </div>
+          )}
+        </>
       ) : null}
 
       {!loading && songs.length > 0 && (
@@ -395,7 +404,7 @@ export default function Library(): React.ReactElement {
             确认删除选中的 <strong>{selected.size}</strong> 首歌曲？此操作不可撤销，歌曲下的曲谱、录音、练习记录将一并删除。
           </>
         }
-        onConfirm={() => void doBulkDelete()}
+        onConfirm={() => doBulkDelete()}
         onClose={() => setBulkDeleteOpen(false)}
       />
 
@@ -499,8 +508,14 @@ function AlphaView({
   sortable: boolean
   onReorder: (items: { id: string; sortOrder: number }[]) => void
 }): React.ReactElement {
-  // 根据屏幕宽度动态列数：窄屏1列，逐渐到最多4列
-  const colCount = window.innerWidth < 640 ? 1 : window.innerWidth < 900 ? 2 : window.innerWidth < 1200 ? 3 : 4
+  // 根据屏幕宽度动态列数：窄屏1列，逐渐到最多4列（监听 resize 保持同步）
+  const [winWidth, setWinWidth] = useState(() => window.innerWidth)
+  useEffect(() => {
+    const onResize = (): void => setWinWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  const colCount = winWidth < 640 ? 1 : winWidth < 900 ? 2 : winWidth < 1200 ? 3 : 4
   const dragIndexRef = useRef<number | null>(null)
 
   const handleDragStart = (e: React.DragEvent, index: number) => {

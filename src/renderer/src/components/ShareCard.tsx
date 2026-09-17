@@ -250,7 +250,7 @@ export function drawShareCard(opts: DrawShareCardOptions): string {
   if (selectedItems.has('todayPractice')) {
     statCards.push({ value: minutesLabel(stats.todayPracticeSeconds), label: '今日练习', colors: C.statGradients[0] })
   }
-  if (selectedItems.has('strendDays')) {
+  if (selectedItems.has('streakDays')) {
     statCards.push({ value: `${stats.streakDays} 天`, label: '🔥 连续', colors: C.statGradients[1] })
   }
   if (selectedItems.has('monthPractice')) {

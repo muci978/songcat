@@ -9,10 +9,34 @@
  */
 import { BrowserWindow } from 'electron'
 import type { Instrument } from '@shared'
+import { networkErr } from './errors'
 
 export const GUISTUDY_BASE = 'https://guistudy.com'
 const CHROME_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+/** 页面导航超时（ms）：站点无响应时不永久挂起 */
+const NAV_TIMEOUT_MS = 8000
+
+/**
+ * loadURL 加导航超时：超时则销毁窗口并抛 networkErr，
+ * 避免站点不响应导致 Promise 永久挂起 + 隐藏窗口泄漏。
+ */
+async function loadUrlWithTimeout(win: BrowserWindow, url: string, timeoutMs: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      win.loadURL(url),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          if (!win.isDestroyed()) win.destroy()
+          reject(networkErr(`页面加载超时（${timeoutMs}ms）`))
+        }, timeoutMs)
+      })
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
 
 export interface GuistudySearchResult {
   title: string
@@ -93,7 +117,11 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
   })
   win.webContents.setUserAgent(CHROME_UA)
   try {
-    await win.loadURL(`${GUISTUDY_BASE}/searchResults?searchValue=${encodeURIComponent(q)}`)
+    await loadUrlWithTimeout(
+      win,
+      `${GUISTUDY_BASE}/searchResults?searchValue=${encodeURIComponent(q)}`,
+      NAV_TIMEOUT_MS
+    )
     // SSR 已含结果，稍等确保渲染完成
     await new Promise((r) => setTimeout(r, 1500))
     const raw = (await win.webContents.executeJavaScript(DOM_EXTRACT).catch(() => [])) as {
@@ -123,6 +151,6 @@ export async function searchGuistudy(query: string): Promise<GuistudySearchResul
     }
     return out
   } finally {
-    win.destroy()
+    if (!win.isDestroyed()) win.destroy()
   }
 }

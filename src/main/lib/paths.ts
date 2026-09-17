@@ -4,11 +4,11 @@
  * 所有"按 songId 派生路径"的操作都用 safeJoin 防越界（renderer 不直接持有路径）。
  */
 import { app } from 'electron'
-import { join } from 'node:path'
+import { join, isAbsolute, relative } from 'node:path'
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { DIR, DB_FILENAME } from '@shared'
 import type { PathInfo } from '@shared'
-import { safeJoin } from '../utils/path'
+import { safeJoin, isWithin, toPosix } from '../utils/path'
 
 /** 自定义数据目录配置文件名（始终在原始 %APPDATA%/SongCat/ 下） */
 const DATA_DIR_CONFIG = 'songcat-data-dir.json'
@@ -31,6 +31,24 @@ export function getDbPath(): string {
 
 export function getLibraryRoot(): string {
   return join(getUserDataRoot(), DIR.library)
+}
+
+/**
+ * 把 DB 中存储的 local_path 解析为可访问的绝对路径。
+ * - 相对路径：拼接到当前曲库根（相对存储的正常情况）。
+ * - 绝对路径：原样返回（兼容尚未规范化的存量数据，或位于库外的路径）。
+ */
+export function resolveLibraryPath(stored: string): string {
+  return isAbsolute(stored) ? stored : join(getLibraryRoot(), stored)
+}
+
+/**
+ * 把绝对路径转换为相对曲库根的 POSIX 路径以便入库。
+ * 库外的绝对路径无法相对化，原样返回。
+ */
+export function toLibraryRelative(abs: string): string {
+  const root = getLibraryRoot()
+  return isWithin(root, abs) ? toPosix(relative(root, abs)) : abs
 }
 
 /** <song-id> 根目录 */

@@ -28,6 +28,10 @@ export function AudioWaveform({ stream }: AudioWaveformProps): React.ReactElemen
     const dataArray = new Uint8Array(bufferLength)
     const canvasCtx = canvas.getContext('2d')!
 
+    // accent 颜色在 effect 内读取一次（getComputedStyle 昂贵，避免每帧调用）
+    const style = getComputedStyle(document.documentElement)
+    const accent = style.getPropertyValue('--accent').trim() || '#f97316'
+
     const draw = () => {
       animRef.current = requestAnimationFrame(draw)
       analyser.getByteTimeDomainData(dataArray)
@@ -37,10 +41,6 @@ export function AudioWaveform({ stream }: AudioWaveformProps): React.ReactElemen
 
       canvasCtx.fillStyle = 'transparent'
       canvasCtx.clearRect(0, 0, width, height)
-
-      // 使用 accent 颜色
-      const style = getComputedStyle(document.documentElement)
-      const accent = style.getPropertyValue('--accent').trim() || '#f97316'
 
       canvasCtx.lineWidth = 2
       canvasCtx.strokeStyle = accent
@@ -69,7 +69,7 @@ export function AudioWaveform({ stream }: AudioWaveformProps): React.ReactElemen
     return () => {
       cancelAnimationFrame(animRef.current)
       source.disconnect()
-      audioCtx.close()
+      audioCtx.close().catch(() => {})
       ctxRef.current = null
     }
   }, [stream])
