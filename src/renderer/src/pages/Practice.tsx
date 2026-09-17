@@ -149,7 +149,7 @@ export default function Practice(): React.ReactElement {
       setPhase('running')
       startTick()
       startHeartbeat()
-      metro.play()
+      // 节拍器与练习计时独立：不再联动启动，由节拍器自身按钮控制
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -165,7 +165,6 @@ export default function Practice(): React.ReactElement {
         tickRef.current = null
       }
       setPhase('paused')
-      metro.stop()
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -178,7 +177,6 @@ export default function Practice(): React.ReactElement {
       await unwrap(api.practice.resumeSession(sid))
       startTick()
       setPhase('running')
-      metro.play()
     } catch (e) {
       toast.error((e as Error).message)
     }
@@ -200,7 +198,6 @@ export default function Practice(): React.ReactElement {
       sessionIdRef.current = null
       setElapsed(0)
       setPhase('idle')
-      metro.stop()
       toast.success('已结束本次练习')
       await reload()
     } catch (e) {

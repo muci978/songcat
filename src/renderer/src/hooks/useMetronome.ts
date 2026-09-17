@@ -164,6 +164,19 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
     const ctx = ctxRef.current
     if (!ctx || !playingRef.current) return
 
+    // 时钟重同步：正常情况下 nextBeatTime 始终领先音频时钟约 SCHEDULE_AHEAD；
+    // 一旦它落到 currentTime 之后，说明 setTimeout 被饿死（OS 睡眠/挂起、窗口最小化被
+    // Chromium 节流）而 currentTime 仍在推进。此时若照常执行 while 会一次性补调度所有过期
+    // 拍（睡 8 小时 @120BPM ≈ 5.7 万次迭代、11 万个音频节点）→ 主线程卡死。
+    // 故直接对齐到当前时刻、丢弃过期拍，从下一个整拍重新开始。
+    // （与 practice.ts 的 MAX_SEGMENT_DELTA_SECONDS 睡眠防护同源）
+    if (nextBeatTimeRef.current < ctx.currentTime) {
+      nextBeatTimeRef.current = ctx.currentTime + 0.05
+      currentBeatRef.current = 0
+      lastScheduledBeatRef.current = -1
+      lastScheduledTimeRef.current = ctx.currentTime
+    }
+
     while (nextBeatTimeRef.current < ctx.currentTime + SCHEDULE_AHEAD) {
       const beatIndex = currentBeatRef.current
       const ts = tsRef.current
@@ -211,6 +224,8 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
 
   /* ---- play / stop ---- */
   const play = useCallback(() => {
+    // 已在播放：直接返回，避免重复启动第二条 scheduler 定时器链（会双倍调度、翻倍节点）
+    if (playingRef.current) return
     const ctx = getCtx()
     if (ctx.state === 'suspended') {
       void ctx.resume()

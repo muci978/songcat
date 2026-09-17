@@ -17,6 +17,13 @@ export const practiceGoalsRepository = {
       .get(date) as PracticeGoalRow | undefined
   },
 
+  /** 最近一次设定的目标（按日期倒序取第一条），用于跨天沿用上次目标 */
+  getLatest(): PracticeGoalRow | undefined {
+    return getDb()
+      .prepare('SELECT * FROM practice_goals ORDER BY date DESC LIMIT 1')
+      .get() as PracticeGoalRow | undefined
+  },
+
   upsert(date: string, targetSeconds: number): PracticeGoalRow {
     const db = getDb()
     const now = nowIso()

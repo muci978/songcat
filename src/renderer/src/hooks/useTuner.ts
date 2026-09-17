@@ -1,9 +1,13 @@
-/** useTuner — 吉他/尤克里里调音器 Hook
+/** useTuner — 吉他调音器 Hook
  *
  * 核心设计：
- *   - 自相关（Autocorrelation）音高检测 + 平滑滤波
- *   - 参考音：简洁正弦波 + 长衰减
- *   - 麦克风管理：getUserMedia 获取音频流，组件卸载时释放
+ *   - 音高检测：YIN 算法（de Cheveigné & Kawahara, 2002）
+ *       差分函数 → 累积均值归一化差分(CMND) → 绝对阈值取谷 → 抛物线插值
+ *     相比朴素自相关，CMND 归一化能显著抑制八度误判、对音量变化更稳健，是主流吉他
+ *     调音器（如 badlogic/tuner、pitchfinder）采用的算法。
+ *   - 平滑：频率 EMA + 滑动窗口投票 + 信号丢失容差，避免读数抖动/闪烁。
+ *   - 参考音：多泛音合成模拟钢弦吉他拨弦。
+ *   - 麦克风管理：getUserMedia 获取音频流，组件卸载时释放。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -36,71 +40,104 @@ function noteToFrequency(note: string, octave: number): number {
 }
 
 /* ------------------------------------------------------------------ */
-/* 自相关音高检测                                                        */
+/* YIN 音高检测                                                          */
 /* ------------------------------------------------------------------ */
 
-const FFT_SIZE = 2048
-const MIN_FREQUENCY = 60
+/**
+ * 分析窗口：4096 样本 ≈ 93ms（44.1k）。
+ * 取较大窗口是为低音弦服务：低音 E2≈82Hz 周期约 12ms，窗口需容纳多个周期，
+ * 差分函数在 (SIZE - tauMax) 段上才有足够样本，读数才稳；对稳态调音音也更抗噪。
+ */
+const FFT_SIZE = 4096
+const MIN_FREQUENCY = 60 // 低于 E2(82Hz) 留出失谐余量
 const MAX_FREQUENCY = 1400
+/** YIN 绝对阈值：CMND 首次跌破该值处即认定为基频周期（越小越严格，0.10~0.15 为常用区间） */
+const YIN_THRESHOLD = 0.12
+/** RMS 静音门限：低于此不做检测 */
+const RMS_GATE = 0.01
 
 /** 检测节流间隔（毫秒），约 30fps —— rAF 仍每帧继续，但不足该间隔就跳过重算 */
 const DETECT_INTERVAL_MS = 1000 / 30
 
 // 复用缓冲：避免每帧 new Float32Array 造成 GC 压力（长度固定为 FFT_SIZE）
 const timeDomainBuf = new Float32Array(FFT_SIZE)
-const correlationBuf = new Float32Array(FFT_SIZE)
+const diffBuf = new Float32Array(FFT_SIZE) // 差分函数 d(tau)
+const cmndBuf = new Float32Array(FFT_SIZE) // 累积均值归一化差分 d'(tau)
 
+/**
+ * YIN 音高检测：返回基频（Hz），无可信音高时返回 null。
+ * 步骤见 de Cheveigné & Kawahara (2002)：差分 → CMND → 绝对阈值 → 抛物线插值。
+ */
 function detectPitch(buf: Float32Array, sampleRate: number): number | null {
   const SIZE = buf.length
 
+  // RMS 门限：过滤静音/底噪
   let rms = 0
-  for (let i = 0; i < SIZE; i++) {
-    rms += buf[i]! * buf[i]!
-  }
+  for (let i = 0; i < SIZE; i++) rms += buf[i]! * buf[i]!
   rms = Math.sqrt(rms / SIZE)
-  if (rms < 0.01) return null
+  if (rms < RMS_GATE) return null
 
-  // 自相关只需算到 maxLag（对应 MIN_FREQUENCY），无需覆盖整个 SIZE：
-  // 把外层循环从 O(SIZE²) 降到 O(SIZE·maxLag)，maxLag≈735(44.1k)/800(48k)
-  const minLag = Math.floor(sampleRate / MAX_FREQUENCY)
-  const maxLag = Math.min(Math.floor(sampleRate / MIN_FREQUENCY), SIZE - 1)
-  // 抛物线插值需访问 bestLag+1，故多算一格
-  const corrLimit = Math.min(maxLag + 1, SIZE - 1)
+  const tauMin = Math.max(1, Math.floor(sampleRate / MAX_FREQUENCY))
+  const tauMax = Math.min(Math.floor(sampleRate / MIN_FREQUENCY), SIZE - 1)
+  if (tauMax <= tauMin) return null
 
-  const correlations = correlationBuf
-  for (let lag = 0; lag <= corrLimit; lag++) {
+  // Step 1：差分函数 d(tau) = Σ (x[i] - x[i+tau])²
+  const diff = diffBuf
+  diff[0] = 0
+  for (let tau = 1; tau <= tauMax; tau++) {
     let sum = 0
-    for (let i = 0; i < SIZE - lag; i++) {
-      sum += buf[i]! * buf[i + lag]!
+    const n = SIZE - tau
+    for (let i = 0; i < n; i++) {
+      const delta = buf[i]! - buf[i + tau]!
+      sum += delta * delta
     }
-    correlations[lag] = sum
+    diff[tau] = sum
   }
 
-  // 跳过 lag=0 附近的主峰下降段（上界限制在 maxLag，避免读到复用缓冲的陈旧值）
-  let firstDip = 0
-  while (firstDip < maxLag && correlations[firstDip + 1]! > correlations[firstDip]!) {
-    firstDip++
+  // Step 2：累积均值归一化差分 CMND —— 使不同基频的谷值可比，并压制八度误判
+  const cmnd = cmndBuf
+  cmnd[0] = 1
+  let running = 0
+  for (let tau = 1; tau <= tauMax; tau++) {
+    running += diff[tau]!
+    cmnd[tau] = running === 0 ? 1 : (diff[tau]! * tau) / running
   }
 
-  let bestLag = -1
-  let bestCorr = -Infinity
+  // Step 3：绝对阈值 —— 找首个跌破阈值的谷，再向后走到局部极小；无则取全局最小兜底
+  let tauEst = -1
+  for (let tau = tauMin; tau <= tauMax; tau++) {
+    if (cmnd[tau]! < YIN_THRESHOLD) {
+      while (tau + 1 <= tauMax && cmnd[tau + 1]! < cmnd[tau]!) tau++
+      tauEst = tau
+      break
+    }
+  }
+  if (tauEst === -1) {
+    // 未跌破阈值：取全局最小，但若仍偏高说明非周期性（噪声/杂音），拒绝
+    let minVal = Infinity
+    for (let tau = tauMin; tau <= tauMax; tau++) {
+      if (cmnd[tau]! < minVal) {
+        minVal = cmnd[tau]!
+        tauEst = tau
+      }
+    }
+    if (tauEst === -1 || minVal > 0.5) return null
+  }
 
-  for (let lag = Math.max(firstDip + 1, minLag); lag <= maxLag; lag++) {
-    if (correlations[lag]! > bestCorr) {
-      bestCorr = correlations[lag]!
-      bestLag = lag
+  // Step 4：抛物线插值细化 tau（亚样本精度）
+  let refinedTau = tauEst
+  if (tauEst > tauMin && tauEst < tauMax) {
+    const s0 = cmnd[tauEst - 1]!
+    const s1 = cmnd[tauEst]!
+    const s2 = cmnd[tauEst + 1]!
+    const denom = s0 - 2 * s1 + s2
+    if (denom !== 0) {
+      const shift = (s0 - s2) / (2 * denom)
+      refinedTau = tauEst + Math.max(-1, Math.min(1, shift))
     }
   }
 
-  if (bestLag === -1) return null
-
-  const y1 = correlations[bestLag - 1] ?? 0
-  const y2 = correlations[bestLag]!
-  const y3 = correlations[bestLag + 1] ?? 0
-  const shift = (y3 - y1) / (2 * (2 * y2 - y1 - y3))
-  const refinedLag = bestLag + (isFinite(shift) ? shift : 0)
-
-  return sampleRate / refinedLag
+  return refinedTau > 0 ? sampleRate / refinedTau : null
 }
 
 /* ------------------------------------------------------------------ */

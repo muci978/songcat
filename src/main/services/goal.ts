@@ -13,12 +13,19 @@ function rowToGoal(row: { id: string; target_seconds: number; date: string; crea
   }
 }
 
-/** 获取今日目标（无则返回默认值 1800 秒 = 30 分钟） */
+/** 获取今日目标。
+ *  优先返回今日已设定的目标；今日无记录时沿用「最近一次设定的目标」（跨天/重启保持不变，
+ *  修复过去每天重置为默认 30 分钟的问题）；从未设定过才返回默认值 1800 秒 = 30 分钟。 */
 export function getTodayGoal(): PracticeGoal {
   // 用本地日期做 key，与 dashboard/aggregate 的本地时区分桶口径一致（避免跨时区错位）
   const today = localDateKeyOfDate(new Date())
   const row = practiceGoalsRepository.getByDate(today)
   if (row) return rowToGoal(row)
+
+  // 今日尚未单独设定：沿用最近一次设定过的目标（以今日为展示日期）
+  const latest = practiceGoalsRepository.getLatest()
+  if (latest) return { ...rowToGoal(latest), date: today }
+
   return {
     id: '',
     targetSeconds: 1800,

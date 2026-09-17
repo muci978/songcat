@@ -1,5 +1,5 @@
 ; SongCat NSIS 自定义脚本
-; 安装时检查版本（一致/旧/新），卸载时询问是否删除用户数据
+; 安装时检查版本（一致/旧/新），卸载时询问是否保留用户数据
 
 !include "WordFunc.nsh"
 !insertmacro VersionCompare
@@ -29,9 +29,9 @@
   init_continue:
 !macroend
 
-; ==================== 卸载时询问删除用户数据 ====================
+; ==================== 卸载时询问是否保留用户数据 ====================
 !macro customUnInstall
-  MessageBox MB_YESNO|MB_ICONQUESTION "Delete SongCat user data too (library, database, recordings, settings)? Choose No to keep." IDNO un_skip_data
+  MessageBox MB_YESNO|MB_ICONQUESTION "是否保留 SongCat 的用户数据（曲库、数据库、录音、设置）？$\r$\n$\r$\n是 = 保留数据（下次安装可继续使用）$\r$\n否 = 一并删除全部数据" IDYES un_keep_data
     RMDir /r "$APPDATA\SongCat"
-  un_skip_data:
+  un_keep_data:
 !macroend
