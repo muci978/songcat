@@ -129,9 +129,10 @@ export const IPC = {
     getActiveForSong: 'practice:getActiveForSong'
   },
   recording: {
-    saveLatestTake: 'recording:saveLatestTake',
-    getForSong: 'recording:getForSong',
-    remove: 'recording:remove'
+    save: 'recording:save',
+    list: 'recording:list',
+    remove: 'recording:remove',
+    setPrimary: 'recording:setPrimary'
   },
   dashboard: {
     getStats: 'dashboard:getStats'
@@ -377,9 +378,10 @@ export interface PracticeApi {
 }
 
 export interface RecordingApi {
-  saveLatestTake(input: SaveRecordingInput): Promise<IpcResult<Recording>>
-  getForSong(songId: string): Promise<IpcResult<Recording | null>>
-  remove(songId: string): Promise<IpcResult<{ removed: boolean }>>
+  save(input: SaveRecordingInput): Promise<IpcResult<Recording>>
+  list(songId: string): Promise<IpcResult<Recording[]>>
+  remove(recordingId: string): Promise<IpcResult<{ removed: boolean }>>
+  setPrimary(recordingId: string): Promise<IpcResult<{ ok: boolean }>>
 }
 
 export interface DashboardApi {
@@ -420,6 +422,10 @@ export interface SystemApi {
   setFullscreen(fullscreen: boolean): Promise<IpcResult<boolean>>
   /** 监听全屏状态变化 */
   onFullscreenChanged(callback: (isFullscreen: boolean) => void): () => void
+  /** 监听系统即将挂起（睡眠）；返回取消订阅函数 */
+  onPowerSuspend(callback: () => void): () => void
+  /** 监听系统从挂起中唤醒；返回取消订阅函数 */
+  onPowerResume(callback: () => void): () => void
   /** 弹出文件夹选择对话框，返回选中的数据目录路径 */
   selectDataDir(): Promise<IpcResult<string | null>>
   /** 重置为默认数据目录 */

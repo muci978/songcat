@@ -53,9 +53,10 @@ const api: SongCatApi = {
     getActiveForSong: (songId) => ipcRenderer.invoke(IPC.practice.getActiveForSong, songId)
   },
   recording: {
-    saveLatestTake: (input) => ipcRenderer.invoke(IPC.recording.saveLatestTake, input),
-    getForSong: (songId) => ipcRenderer.invoke(IPC.recording.getForSong, songId),
-    remove: (songId) => ipcRenderer.invoke(IPC.recording.remove, songId)
+    save: (input) => ipcRenderer.invoke(IPC.recording.save, input),
+    list: (songId) => ipcRenderer.invoke(IPC.recording.list, songId),
+    remove: (recordingId) => ipcRenderer.invoke(IPC.recording.remove, recordingId),
+    setPrimary: (recordingId) => ipcRenderer.invoke(IPC.recording.setPrimary, recordingId)
   },
   dashboard: {
     getStats: () => ipcRenderer.invoke(IPC.dashboard.getStats)
@@ -91,6 +92,16 @@ const api: SongCatApi = {
       const handler = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen)
       ipcRenderer.on('fullscreen-changed', handler)
       return () => ipcRenderer.removeListener('fullscreen-changed', handler)
+    },
+    onPowerSuspend: (callback) => {
+      const handler = (): void => callback()
+      ipcRenderer.on('power-suspend', handler)
+      return () => ipcRenderer.removeListener('power-suspend', handler)
+    },
+    onPowerResume: (callback) => {
+      const handler = (): void => callback()
+      ipcRenderer.on('power-resume', handler)
+      return () => ipcRenderer.removeListener('power-resume', handler)
     },
     selectDataDir: () => ipcRenderer.invoke(IPC.system.selectDataDir),
     resetDataDir: () => ipcRenderer.invoke(IPC.system.resetDataDir),

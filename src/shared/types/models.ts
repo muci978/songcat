@@ -97,6 +97,7 @@ export interface RecordingRow {
   duration_seconds: number | null
   recorded_at: string
   mime_type: string | null
+  is_primary: 0 | 1
 }
 
 export interface ResourceSourceRow {
@@ -218,6 +219,8 @@ export interface Recording {
   recordedAt: string
   mimeType: string | null
   fileSize: number | null
+  /** 是否为该歌的主录音（详情/默认播放优先） */
+  isPrimary: boolean
 }
 
 export interface ResourceSource {
@@ -253,7 +256,8 @@ export interface DownloadJob {
 export interface SongDetail extends SongSummary {
   scores: ScoreAsset[]
   sourceLinks: SourceLink[]
-  recording: Recording | null
+  /** 该歌的全部录音，主录音排在最前 */
+  recordings: Recording[]
   recentSessions: PracticeSession[]
 }
 
@@ -333,6 +337,8 @@ export interface DashboardStats {
   }[]
   /** 连续练习天数 */
   streakDays: number
+  /** 最近约一年（365 天）逐日练习时长，用于热力图 */
+  heatmap: { date: string; seconds: number }[]
 }
 
 /** 健康检查报告（见设计 §15.3） */

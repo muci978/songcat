@@ -110,31 +110,34 @@ function NumberStepper({
   value,
   min,
   max,
+  step = 1,
   onChange
 }: {
   value: number
   min: number
   max: number
+  step?: number
   onChange: (v: number) => void
 }): React.ReactElement {
+  const clamp = (v: number): number => Math.max(min, Math.min(max, v))
   return (
     <div className="row" style={{ gap: 4, alignItems: 'center' }}>
       <button
         className="btn btn-sm btn-ghost"
         style={{ padding: '2px 6px', fontSize: 14 }}
         disabled={value <= min}
-        onClick={() => onChange(value - 1)}
+        onClick={() => onChange(clamp(value - step))}
       >
         −
       </button>
-      <span style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+      <span style={{ minWidth: 28, textAlign: 'center', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
         {value}
       </span>
       <button
         className="btn btn-sm btn-ghost"
         style={{ padding: '2px 6px', fontSize: 14 }}
         disabled={value >= max}
-        onClick={() => onChange(value + 1)}
+        onClick={() => onChange(clamp(value + step))}
       >
         ＋
       </button>
@@ -163,12 +166,12 @@ export function MetronomeCard({
   onBpmChange,
   onTimeSignatureChange
 }: MetronomeCardProps): React.ReactElement {
-  // BPM 变更时通知父组件
+  // BPM 变更时通知父组件（速度训练自动提速为瞬态，不持久化到歌曲；手动调节始终持久化）
   const prevBpmRef = useRef(metro.bpm)
   useEffect(() => {
     if (metro.bpm !== prevBpmRef.current) {
       prevBpmRef.current = metro.bpm
-      onBpmChange?.(metro.bpm)
+      if (!metro.bpmFromTrainer) onBpmChange?.(metro.bpm)
     }
   }, [metro.bpm]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -238,6 +241,55 @@ export function MetronomeCard({
         <button className="btn btn-ghost" onClick={metro.tapTempo}>
           Tap
         </button>
+      </div>
+
+      {/* 速度训练器：每 N 小节自动提速直到目标 BPM */}
+      <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+        <label className="row" style={{ gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={metro.speedTrainer.enabled}
+            onChange={(e) => metro.setSpeedTrainer({ enabled: e.target.checked })}
+          />
+          <span className="label" style={{ margin: 0, fontSize: 13 }}>速度训练</span>
+        </label>
+        {metro.speedTrainer.enabled && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="row-between" style={{ alignItems: 'center' }}>
+              <span className="faint" style={{ fontSize: 12 }}>每 N 小节提速</span>
+              <NumberStepper
+                value={metro.speedTrainer.everyBars}
+                min={1}
+                max={32}
+                onChange={(v) => metro.setSpeedTrainer({ everyBars: v })}
+              />
+            </div>
+            <div className="row-between" style={{ alignItems: 'center' }}>
+              <span className="faint" style={{ fontSize: 12 }}>每次 +BPM</span>
+              <NumberStepper
+                value={metro.speedTrainer.bpmStep}
+                min={1}
+                max={30}
+                onChange={(v) => metro.setSpeedTrainer({ bpmStep: v })}
+              />
+            </div>
+            <div className="row-between" style={{ alignItems: 'center' }}>
+              <span className="faint" style={{ fontSize: 12 }}>目标 BPM</span>
+              <NumberStepper
+                value={metro.speedTrainer.targetBpm}
+                min={40}
+                max={240}
+                step={5}
+                onChange={(v) => metro.setSpeedTrainer({ targetBpm: v })}
+              />
+            </div>
+            <div className="faint" style={{ fontSize: 12, textAlign: 'center' }}>
+              {metro.bpm >= metro.speedTrainer.targetBpm
+                ? '已达目标速度 ✓'
+                : `当前 ${metro.bpm} → 目标 ${metro.speedTrainer.targetBpm} BPM`}
+            </div>
+          </div>
+        )}
       </div>
     </Card>
   )

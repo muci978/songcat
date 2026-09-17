@@ -98,6 +98,34 @@ const migrations: Migration[] = [
         ALTER TABLE songs ADD COLUMN time_signature TEXT;
       `)
     }
+  },
+  {
+    version: 7,
+    run: (db) => {
+      // 重建 recordings：去掉 song_id UNIQUE（支持每首歌多条录音），新增 is_primary。
+      // 既有每首歌至多一条录音，迁移时全部置为主录音（is_primary=1）。
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS _recordings_v7 (
+          id               TEXT PRIMARY KEY NOT NULL,
+          song_id          TEXT NOT NULL,
+          local_path       TEXT NOT NULL,
+          file_hash        TEXT,
+          file_size        INTEGER,
+          duration_seconds INTEGER,
+          recorded_at      TEXT NOT NULL,
+          mime_type        TEXT,
+          is_primary       INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)),
+          FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
+        );
+        INSERT OR IGNORE INTO _recordings_v7
+          (id, song_id, local_path, file_hash, file_size, duration_seconds, recorded_at, mime_type, is_primary)
+        SELECT id, song_id, local_path, file_hash, file_size, duration_seconds, recorded_at, mime_type, 1
+        FROM recordings;
+        DROP TABLE recordings;
+        ALTER TABLE _recordings_v7 RENAME TO recordings;
+        CREATE INDEX IF NOT EXISTS idx_recordings_song ON recordings(song_id);
+      `)
+    }
   }
 ]
 

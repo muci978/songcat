@@ -71,6 +71,22 @@ const STAT_COLORS = [
   { bg: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
 ]
 
+/* 热力图分档配色（0 / 1-15 / 16-30 / 31-60 / 60+ 分钟），GitHub 风格绿色梯度 */
+const HEATMAP_COLORS = {
+  light: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'],
+  dark: ['#2d2a28', '#0e4429', '#006d32', '#26a641', '#39d353']
+}
+
+/** 按分钟数返回热力图档位 0–4 */
+function heatmapLevel(seconds: number): number {
+  const min = seconds / 60
+  if (min <= 0) return 0
+  if (min <= 15) return 1
+  if (min <= 30) return 2
+  if (min <= 60) return 3
+  return 4
+}
+
 export default function Dashboard(): React.ReactElement {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [goal, setGoal] = useState<PracticeGoal | null>(null)
@@ -288,6 +304,11 @@ export default function Dashboard(): React.ReactElement {
         </div>
       </Card>
 
+      {/* 练习热力图 */}
+      <Card title="练习热力图（近一年）" style={{ marginTop: 28 }}>
+        <Heatmap data={stats.heatmap} isDark={isDark} />
+      </Card>
+
       {/* 饼图区域 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginTop: 28 }}>
         <Card title="今日各歌曲练习占比">
@@ -459,6 +480,65 @@ export default function Dashboard(): React.ReactElement {
         goal={goal}
         onClose={() => setShowShareModal(false)}
       />
+    </div>
+  )
+}
+
+function Heatmap({
+  data,
+  isDark
+}: {
+  data: { date: string; seconds: number }[]
+  isDark: boolean
+}): React.ReactElement {
+  const palette = isDark ? HEATMAP_COLORS.dark : HEATMAP_COLORS.light
+  // 后端按日期倒序返回，这里转为升序（最早 → 最近）
+  const asc = [...data].reverse()
+  if (asc.length === 0) return <Empty>还没有练习记录</Empty>
+  // 首格所在星期（0=周日），前面补空格使每列对应一个自然周（行 = 星期）
+  const firstDay = new Date(asc[0]!.date + 'T12:00:00').getDay()
+  const cells: ({ date: string; seconds: number } | null)[] = [
+    ...Array.from({ length: firstDay }, () => null),
+    ...asc
+  ]
+  return (
+    <div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateRows: 'repeat(7, 11px)',
+          gridAutoFlow: 'column',
+          gridAutoColumns: '11px',
+          gap: 3,
+          overflowX: 'auto',
+          paddingBottom: 4
+        }}
+      >
+        {cells.map((cell, i) =>
+          cell ? (
+            <div
+              key={cell.date}
+              title={`${cell.date} · ${cell.seconds > 0 ? `${Math.round(cell.seconds / 60)} 分钟` : '无练习'}`}
+              style={{
+                width: 11,
+                height: 11,
+                borderRadius: 2,
+                background: palette[heatmapLevel(cell.seconds)]
+              }}
+            />
+          ) : (
+            <div key={`pad-${i}`} style={{ width: 11, height: 11 }} />
+          )
+        )}
+      </div>
+      {/* 图例 */}
+      <div className="row" style={{ gap: 4, alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
+        <span className="faint" style={{ fontSize: 11 }}>少</span>
+        {palette.map((color, i) => (
+          <div key={i} style={{ width: 11, height: 11, borderRadius: 2, background: color }} />
+        ))}
+        <span className="faint" style={{ fontSize: 11 }}>多</span>
+      </div>
     </div>
   )
 }

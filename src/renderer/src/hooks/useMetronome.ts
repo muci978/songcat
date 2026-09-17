@@ -26,6 +26,14 @@ export interface UseMetronomeOptions {
   initialTimeSignature?: TimeSignature
 }
 
+/** 速度训练器配置：每 everyBars 小节自动 +bpmStep，直到 targetBpm */
+export interface SpeedTrainerConfig {
+  enabled: boolean
+  everyBars: number
+  bpmStep: number
+  targetBpm: number
+}
+
 export interface UseMetronomeReturn {
   playing: boolean
   bpm: number
@@ -37,6 +45,10 @@ export interface UseMetronomeReturn {
   setBpm: (bpm: number) => void
   setTimeSignature: (ts: TimeSignature) => void
   tapTempo: () => void
+  speedTrainer: SpeedTrainerConfig
+  setSpeedTrainer: (cfg: Partial<SpeedTrainerConfig>) => void
+  /** 最近一次 BPM 变更是否来自速度训练器自动提速（用于区分手动调节，避免瞬态值被持久化） */
+  bpmFromTrainer: boolean
 }
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +59,14 @@ const BPM_MIN = 40
 const BPM_MAX = 240
 const BPM_DEFAULT = 120
 const TS_DEFAULT: TimeSignature = { beats: 4, unit: 4 }
+
+/** 速度训练器默认配置 */
+const SPEED_TRAINER_DEFAULT: SpeedTrainerConfig = {
+  enabled: false,
+  everyBars: 4,
+  bpmStep: 5,
+  targetBpm: 160
+}
 
 /** 提前调度时间（秒） */
 const SCHEDULE_AHEAD = 0.1
@@ -151,6 +171,13 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
   const tapTimesRef = useRef<number[]>([])
   const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // 速度训练器
+  const [speedTrainer, setSpeedTrainerState] = useState<SpeedTrainerConfig>(SPEED_TRAINER_DEFAULT)
+  const speedTrainerRef = useRef<SpeedTrainerConfig>(SPEED_TRAINER_DEFAULT)
+  const barCounterRef = useRef(0)
+  // 最近一次 bpm 变更来源：true=训练器自动提速（瞬态，不持久化），false=手动调节
+  const bpmFromTrainerRef = useRef(false)
+
   /* ---- 获取或创建 AudioContext ---- */
   const getCtx = useCallback((): AudioContext => {
     if (!ctxRef.current) {
@@ -187,6 +214,22 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
       // 记录最近调度的拍位和时间（用于视觉反馈）
       lastScheduledBeatRef.current = beatIndex
       lastScheduledTimeRef.current = nextBeatTimeRef.current
+
+      // 速度训练：调度到本小节最后一拍时计一个小节；累计到 everyBars 则提速（clamp 到目标/上限）
+      const st = speedTrainerRef.current
+      if (st.enabled && beatIndex === ts.beats - 1) {
+        barCounterRef.current += 1
+        if (barCounterRef.current >= st.everyBars) {
+          barCounterRef.current = 0
+          const cur = bpmRef.current
+          if (cur < st.targetBpm) {
+            const next = Math.min(st.targetBpm, BPM_MAX, cur + st.bpmStep)
+            bpmRef.current = next
+            bpmFromTrainerRef.current = true // 标记为自动提速，MetronomeCard 据此不持久化
+            setBpmState(next)
+          }
+        }
+      }
 
       // 推进到下一拍
       nextBeatTimeRef.current += beatInterval(bpmRef.current, ts)
@@ -235,6 +278,7 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
     currentBeatRef.current = 0
     lastScheduledBeatRef.current = -1
     lastScheduledTimeRef.current = ctx.currentTime
+    barCounterRef.current = 0
     setPlaying(true)
     setCurrentBeat(0)
     scheduler()
@@ -263,6 +307,7 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
   const setBpm = useCallback((newBpm: number) => {
     const clamped = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(newBpm)))
     bpmRef.current = clamped
+    bpmFromTrainerRef.current = false // 手动调节：允许持久化
     setBpmState(clamped)
   }, [])
 
@@ -304,6 +349,16 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
 
     setBpm(newBpm)
   }, [setBpm])
+
+  /* ---- 速度训练器 ---- */
+  const setSpeedTrainer = useCallback((cfg: Partial<SpeedTrainerConfig>) => {
+    setSpeedTrainerState((prev) => {
+      const next = { ...prev, ...cfg }
+      speedTrainerRef.current = next
+      barCounterRef.current = 0 // 配置变更（含开关）时重置小节计数
+      return next
+    })
+  }, [])
 
   /* ---- 清理 ---- */
   useEffect(() => {
@@ -351,6 +406,9 @@ export function useMetronome(options: UseMetronomeOptions = {}) {
     toggle,
     setBpm,
     setTimeSignature,
-    tapTempo
+    tapTempo,
+    speedTrainer,
+    setSpeedTrainer,
+    bpmFromTrainer: bpmFromTrainerRef.current
   }
 }

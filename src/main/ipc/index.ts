@@ -138,14 +138,17 @@ export function registerIpc(): void {
   )
 
   /* ---------------- recording ---------------- */
-  ipcMain.handle(IPC.recording.saveLatestTake, (_e, input) =>
-    handle(() => recordingService.saveLatestTake(input))
+  ipcMain.handle(IPC.recording.save, (_e, input) =>
+    handle(() => recordingService.saveTake(input))
   )
-  ipcMain.handle(IPC.recording.getForSong, (_e, songId) =>
-    handle(() => recordingService.getRecordingForSong(songId))
+  ipcMain.handle(IPC.recording.list, (_e, songId) =>
+    handle(() => recordingService.listRecordings(songId))
   )
-  ipcMain.handle(IPC.recording.remove, (_e, songId) =>
-    handle(async () => ({ removed: await recordingService.removeRecording(songId) }))
+  ipcMain.handle(IPC.recording.remove, (_e, recordingId) =>
+    handle(async () => ({ removed: await recordingService.removeById(recordingId) }))
+  )
+  ipcMain.handle(IPC.recording.setPrimary, (_e, recordingId) =>
+    handle(() => ({ ok: recordingService.setPrimary(recordingId) }))
   )
 
   /* ---------------- dashboard ---------------- */

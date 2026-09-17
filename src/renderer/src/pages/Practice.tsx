@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { SongDetail, ScoreAsset } from '@shared'
+import { LOCAL_RECORDING_PROTOCOL } from '@shared'
 import { api, unwrap } from '../lib/api'
 import { formatClock, formatDateTime, formatSeconds } from '../lib/format'
 import { toast } from '../stores/toast'
@@ -42,7 +43,7 @@ export default function Practice(): React.ReactElement {
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const recordStartRef = useRef<number>(0)
-  const [confirmDeleteRecording, setConfirmDeleteRecording] = useState(false)
+  const [removeRecordingId, setRemoveRecordingId] = useState<string | null>(null)
 
   // ---- 节拍器 ----
   const metro = useMetronome({
@@ -50,6 +51,9 @@ export default function Practice(): React.ReactElement {
     initialTimeSignature: { beats: 4, unit: 4 }
   })
   const metroInitedRef = useRef<string | null>(null)
+
+  // ---- 睡眠防护：用 ref 持有最新的「停节拍器 + 暂停计时」逻辑，供 power 事件订阅（只订阅一次） ----
+  const pauseForPowerRef = useRef<() => void>(() => {})
 
   // ---- 节拍器 BPM 持久化 ----
   const bpmDirtyRef = useRef(false)
@@ -205,6 +209,24 @@ export default function Practice(): React.ReactElement {
     }
   }
 
+  // 睡眠防护：系统挂起时停节拍器 + 暂停计时；唤醒后节拍器不自动恢复（由用户手动继续）。
+  // 每次渲染刷新闭包，保证 power 事件回调读到最新的 handlePause / metro（订阅只建立一次）。
+  pauseForPowerRef.current = () => {
+    metro.stop()
+    if (tickRef.current) void handlePause()
+  }
+  useEffect(() => {
+    const onSuspend = (): void => pauseForPowerRef.current()
+    // 唤醒后仅兜底确保仍处于暂停（若挂起瞬间 pause 未跑完），节拍器不自动恢复
+    const onResume = (): void => pauseForPowerRef.current()
+    const unsubSuspend = api.system.onPowerSuspend(onSuspend)
+    const unsubResume = api.system.onPowerResume(onResume)
+    return () => {
+      unsubSuspend()
+      unsubResume()
+    }
+  }, [])
+
   // ---- 备注保存 ----
   const handleSaveNotes = (): Promise<void> =>
     saveAction.run(async () => {
@@ -257,7 +279,7 @@ export default function Practice(): React.ReactElement {
           const buf = await blob.arrayBuffer()
           const durationSeconds = Math.max(1, Math.round((performance.now() - recordStartRef.current) / 1000))
           await unwrap(
-            api.recording.saveLatestTake({
+            api.recording.save({
               songId: id,
               arrayBuffer: buf,
               mimeType: blob.type || mimeTypeUsed,
@@ -295,12 +317,18 @@ export default function Practice(): React.ReactElement {
     setRecording(false)
   }
 
-  const handleDeleteRecording = (): Promise<void> =>
+  const handleDeleteRecording = (recordingId: string): Promise<void> =>
     saveAction.run(async () => {
-      await unwrap(api.recording.remove(id))
-      setConfirmDeleteRecording(false)
+      await unwrap(api.recording.remove(recordingId))
+      setRemoveRecordingId(null)
       await reload()
     }, '录音已删除')
+
+  const handleSetPrimaryRecording = (recordingId: string): Promise<void> =>
+    saveAction.run(async () => {
+      await unwrap(api.recording.setPrimary(recordingId))
+      await reload()
+    }, '已设为主录音')
 
   // 录音组件卸载时清理资源（避免遗留硬件占用）
   useEffect(() => {
@@ -542,7 +570,7 @@ export default function Practice(): React.ReactElement {
           </Card>
 
           {/* 录音 */}
-          <Card title="录音">
+          <Card title={`录音（${detail.recordings.length}）`}>
             {recording ? (
               <div>
                 <div className="row-between" style={{ alignItems: 'center' }}>
@@ -569,33 +597,50 @@ export default function Practice(): React.ReactElement {
                   </div>
                 )}
               </div>
-            ) : detail.recording ? (
-              <div>
-                <audio
-                  controls
-                  src={`songcat-recording://${id}`}
-                  style={{ width: '100%' }}
-                />
-                <div className="row-between" style={{ marginTop: 12 }}>
-                  <span className="faint" style={{ fontSize: 12 }}>
-                    录于 {formatDateTime(detail.recording.recordedAt)}
-                    {detail.recording.durationSeconds ? ` · ${formatSeconds(detail.recording.durationSeconds)}` : ''}
-                  </span>
-                  <div className="row" style={{ gap: 8 }}>
-                    <button className="btn" onClick={() => void handleStartRecording()}>
-                      重新录音
-                    </button>
-                    <button className="btn btn-danger" onClick={() => setConfirmDeleteRecording(true)}>
-                      删除录音
-                    </button>
-                  </div>
-                </div>
-              </div>
             ) : (
-              <div className="row">
-                <button className="btn btn-primary" onClick={() => void handleStartRecording()}>
-                  开始录音
-                </button>
+              <div>
+                <div className="row" style={{ marginBottom: detail.recordings.length > 0 ? 12 : 0 }}>
+                  <button className="btn btn-primary" onClick={() => void handleStartRecording()}>
+                    {detail.recordings.length > 0 ? '＋ 录一条' : '开始录音'}
+                  </button>
+                </div>
+                {detail.recordings.map((rec) => (
+                  <div key={rec.id} className="list-row" style={{ gridTemplateColumns: '1fr' }}>
+                    <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>
+                        {formatDateTime(rec.recordedAt)}
+                      </span>
+                      {rec.isPrimary && <span className="badge">主录音</span>}
+                      {rec.durationSeconds ? (
+                        <span className="faint" style={{ fontSize: 12 }}>
+                          {formatSeconds(rec.durationSeconds)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <audio
+                      controls
+                      src={`${LOCAL_RECORDING_PROTOCOL}://${rec.id}`}
+                      style={{ width: '100%' }}
+                    />
+                    <div className="row" style={{ gap: 8, marginTop: 6 }}>
+                      {!rec.isPrimary && (
+                        <button
+                          className="btn btn-sm"
+                          disabled={saveAction.loading}
+                          onClick={() => void handleSetPrimaryRecording(rec.id)}
+                        >
+                          设为主
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => setRemoveRecordingId(rec.id)}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </Card>
@@ -627,13 +672,15 @@ export default function Practice(): React.ReactElement {
       </div>
 
       <ConfirmDialog
-        open={confirmDeleteRecording}
+        open={removeRecordingId !== null}
         title="删除录音"
         message="确定删除这条录音吗？此操作不可撤销。"
         confirmText="删除"
         danger
-        onConfirm={() => void handleDeleteRecording()}
-        onClose={() => setConfirmDeleteRecording(false)}
+        onConfirm={() => {
+          if (removeRecordingId) void handleDeleteRecording(removeRecordingId)
+        }}
+        onClose={() => setRemoveRecordingId(null)}
       />
 
       <SortPreviewModal

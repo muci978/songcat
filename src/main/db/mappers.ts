@@ -122,7 +122,8 @@ export function rowToRecording(r: RecordingRow): Recording {
     durationSeconds: r.duration_seconds,
     recordedAt: r.recorded_at,
     mimeType: r.mime_type,
-    fileSize: r.file_size
+    fileSize: r.file_size,
+    isPrimary: !!r.is_primary
   }
 }
 

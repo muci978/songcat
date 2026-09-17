@@ -1,8 +1,8 @@
 /**
  * 录音服务（设计 §5.5、§11）。
- * 每首歌只保留最新一条。替换事务顺序：
- *   新文件落盘 → DB upsert 提交 → 删除旧文件。
- * 任何一步失败都不得删除旧录音（旧 DB 行与旧文件必须保留）。
+ * 每首歌可保留多条录音，其中一条标记为主录音。保存顺序：
+ *   新文件落盘 → DB insert 提交（失败则删除刚写的新文件）。
+ * 删除：先删 DB 行（含主录音自动改选），再删本地文件。
  */
 import { recordingsRepository } from '../db/repositories'
 import { safeUnlink, uniqueFilename, writeBufferInto } from '../lib/filestore'
@@ -20,18 +20,18 @@ function mimeToExt(mime: string): string {
   return '.webm'
 }
 
-export async function saveLatestTake(input: SaveRecordingInput): Promise<Recording> {
+/** 追加保存一条新录音（不覆盖已有录音）。首条自动成为主录音。 */
+export async function saveTake(input: SaveRecordingInput): Promise<Recording> {
   const { songId, arrayBuffer, mimeType, durationSeconds } = input
   ensureSongDirs(songId)
-  const oldRow = recordingsRepository.getBySong(songId)
-  const oldPath = oldRow?.local_path ?? null
   const filename = uniqueFilename('recording', mimeToExt(mimeType))
 
   // 1. 新文件落盘
   const stored = await writeBufferInto(arrayBuffer, getSongRecordingsDir(songId), filename)
+  let row
   try {
-    // 2. DB 事务提交（INSERT OR REPLACE，song_id 唯一）
-    recordingsRepository.upsert({
+    // 2. DB 插入新行
+    row = recordingsRepository.insert({
       songId,
       localPath: stored.path,
       fileHash: stored.hash,
@@ -40,27 +40,30 @@ export async function saveLatestTake(input: SaveRecordingInput): Promise<Recordi
       recordedAt: nowIso(),
       mimeType
     })
-    // 3. 提交成功后才删除旧文件
-    if (oldPath) await safeUnlink(oldPath)
   } catch (e) {
-    // DB 失败：删除刚写的新文件，旧 DB 行与旧文件保留
-    logger.error('录音 upsert 失败，保留旧录音', e)
+    // DB 失败：删除刚写的新文件
+    logger.error('录音 insert 失败', e)
     await safeUnlink(stored.path)
     throw ioErr('保存录音失败')
   }
 
-  const row = recordingsRepository.getBySong(songId)
   return recordingsRepository.toModel(row) as Recording
 }
 
-export function getRecordingForSong(songId: string): Recording | null {
-  return recordingsRepository.toModel(recordingsRepository.getBySong(songId))
+/** 某歌全部录音，主录音优先。 */
+export function listRecordings(songId: string): Recording[] {
+  return recordingsRepository.listBySong(songId).map((r) => recordingsRepository.toModel(r)!)
 }
 
-export async function removeRecording(songId: string): Promise<boolean> {
-  const row = recordingsRepository.getBySong(songId)
-  if (!row) return false
-  const ok = recordingsRepository.deleteBySong(songId)
-  if (ok && row.local_path) await safeUnlink(row.local_path)
-  return ok
+/** 删除指定录音（含本地文件）。 */
+export async function removeById(recordingId: string): Promise<boolean> {
+  const removed = recordingsRepository.deleteById(recordingId)
+  if (!removed) return false
+  if (removed.local_path) await safeUnlink(removed.local_path)
+  return true
+}
+
+/** 设为主录音。 */
+export function setPrimary(recordingId: string): boolean {
+  return recordingsRepository.setPrimary(recordingId)
 }

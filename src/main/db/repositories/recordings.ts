@@ -1,15 +1,14 @@
 /**
  * recordings 表 repository（设计 §5.5、§11）。
- * song_id 唯一约束：每首歌只保留最新一条录音。
- * 替换事务顺序（设计 §11）：新文件落盘 → DB upsert 提交 → 删旧文件。
- *   旧文件路径必须在 upsert 之前由 service 取得（getBySong），故 upsert 只负责写新行。
+ * 每首歌可保留多条录音，其中一条标记为主录音（is_primary=1）。
+ * 保存事务顺序（设计 §11）：新文件落盘 → DB insert 提交 → （删除时）再删文件。
  */
 import { getDb } from '../connection'
 import { rowToRecording } from '../mappers'
 import type { Recording, RecordingRow } from '@shared'
 import { newId } from '../../utils'
 
-export interface UpsertRecordingRecord {
+export interface InsertRecordingRecord {
   songId: string
   localPath: string
   fileHash?: string | null
@@ -20,53 +19,90 @@ export interface UpsertRecordingRecord {
 }
 
 export const recordingsRepository = {
-  getBySong(songId: string): RecordingRow | undefined {
-    return getDb().prepare('SELECT * FROM recordings WHERE song_id = ?').get(songId) as
+  /** 某歌全部录音，主录音优先、其次按录制时间倒序。 */
+  listBySong(songId: string): RecordingRow[] {
+    return getDb()
+      .prepare(
+        'SELECT * FROM recordings WHERE song_id = ? ORDER BY is_primary DESC, recorded_at DESC'
+      )
+      .all(songId) as RecordingRow[]
+  },
+
+  getById(id: string): RecordingRow | undefined {
+    return getDb().prepare('SELECT * FROM recordings WHERE id = ?').get(id) as
       | RecordingRow
       | undefined
+  },
+
+  /** 某歌的主录音（无则返回任意最近一条，均无返回 undefined）。 */
+  getPrimaryBySong(songId: string): RecordingRow | undefined {
+    return getDb()
+      .prepare(
+        'SELECT * FROM recordings WHERE song_id = ? ORDER BY is_primary DESC, recorded_at DESC LIMIT 1'
+      )
+      .get(songId) as RecordingRow | undefined
   },
 
   toModel(row: RecordingRow | undefined): Recording | null {
     return row ? rowToRecording(row) : null
   },
 
-  /** INSERT OR REPLACE（song_id 唯一）。返回新行。 */
-  upsert(rec: UpsertRecordingRecord): RecordingRow {
+  /** 插入一条新录音；若为该歌首条则自动设为主录音。返回新行。 */
+  insert(rec: InsertRecordingRecord): RecordingRow {
     const id = newId()
-    getDb()
-      .prepare(
-        `INSERT INTO recordings
-           (id, song_id, local_path, file_hash, file_size, duration_seconds, recorded_at, mime_type)
-         VALUES (@id, @songId, @localPath, @fileHash, @fileSize, @duration, @recordedAt, @mimeType)
-         ON CONFLICT(song_id) DO UPDATE SET
-           local_path = excluded.local_path,
-           file_hash = excluded.file_hash,
-           file_size = excluded.file_size,
-           duration_seconds = excluded.duration_seconds,
-           recorded_at = excluded.recorded_at,
-           mime_type = excluded.mime_type`
-      )
-      .run({
-        id,
-        songId: rec.songId,
-        localPath: rec.localPath,
-        fileHash: rec.fileHash ?? null,
-        fileSize: rec.fileSize ?? null,
-        duration: rec.durationSeconds ?? null,
-        recordedAt: rec.recordedAt,
-        mimeType: rec.mimeType ?? null
-      })
-    return this.getBySong(rec.songId)!
+    const db = getDb()
+    const existing = db
+      .prepare('SELECT COUNT(*) AS n FROM recordings WHERE song_id = ?')
+      .get(rec.songId) as { n: number }
+    const isPrimary = existing.n === 0 ? 1 : 0
+    db.prepare(
+      `INSERT INTO recordings
+         (id, song_id, local_path, file_hash, file_size, duration_seconds, recorded_at, mime_type, is_primary)
+       VALUES (@id, @songId, @localPath, @fileHash, @fileSize, @duration, @recordedAt, @mimeType, @isPrimary)`
+    ).run({
+      id,
+      songId: rec.songId,
+      localPath: rec.localPath,
+      fileHash: rec.fileHash ?? null,
+      fileSize: rec.fileSize ?? null,
+      duration: rec.durationSeconds ?? null,
+      recordedAt: rec.recordedAt,
+      mimeType: rec.mimeType ?? null,
+      isPrimary
+    })
+    return this.getById(id)!
   },
 
-  getBySongStrict(songId: string): RecordingRow {
-    const r = this.getBySong(songId)
-    if (!r) throw new Error(`recording not found for song ${songId}`)
-    return r
+  /** 将指定录音设为主录音（清空同歌其它录音的主标记）。 */
+  setPrimary(id: string): boolean {
+    const db = getDb()
+    const row = this.getById(id)
+    if (!row) return false
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE recordings SET is_primary = 0 WHERE song_id = ?').run(row.song_id)
+      db.prepare('UPDATE recordings SET is_primary = 1 WHERE id = ?').run(id)
+    })
+    tx()
+    return true
   },
 
-  deleteBySong(songId: string): boolean {
-    const r = getDb().prepare('DELETE FROM recordings WHERE song_id = ?').run(songId)
-    return r.changes > 0
+  /** 删除一条录音；若删的是主录音且仍有其它录音，则把最近一条提升为主。返回被删行（供删文件）。 */
+  deleteById(id: string): RecordingRow | undefined {
+    const db = getDb()
+    const row = this.getById(id)
+    if (!row) return undefined
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM recordings WHERE id = ?').run(id)
+      if (row.is_primary) {
+        const next = db
+          .prepare(
+            'SELECT id FROM recordings WHERE song_id = ? ORDER BY recorded_at DESC LIMIT 1'
+          )
+          .get(row.song_id) as { id: string } | undefined
+        if (next) db.prepare('UPDATE recordings SET is_primary = 1 WHERE id = ?').run(next.id)
+      }
+    })
+    tx()
+    return row
   }
 }

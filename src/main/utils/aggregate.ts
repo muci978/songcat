@@ -41,6 +41,8 @@ export interface AggregateResult {
   todayBySong: { songId: string; title: string; artist: string | null; seconds: number }[]
   /** 全部时段艺人练习占比 */
   byArtist: { artist: string | null; seconds: number }[]
+  /** 最近约一年（365 天，含无练习日，0 填充），按日期倒序 */
+  heatmap: { date: string; seconds: number }[]
 }
 
 export function aggregatePractice(
@@ -94,6 +96,13 @@ export function aggregatePractice(
   const yearKeys = recentYearKeys(now, 5)
   const trendByYear = yearKeys.map((date) => ({ date, seconds: trendByYearMap.get(date) ?? 0 }))
 
+  // 热力图固定取最近 365 天（与 trendDays 无关），复用已累计全历史的 trendMap
+  const heatmapRange = recentDays(now, 365)
+  const heatmap = dateKeyRange(heatmapRange.start, heatmapRange.end).map((date) => ({
+    date,
+    seconds: trendMap.get(date) ?? 0
+  }))
+
   const todayBySongArr = [...todayBySong.entries()]
     .map(([songId, seconds]) => {
       const song = songs.get(songId)
@@ -118,6 +127,7 @@ export function aggregatePractice(
     trendByMonth,
     trendByYear,
     todayBySong: todayBySongArr,
-    byArtist: byArtistArr
+    byArtist: byArtistArr,
+    heatmap
   }
 }

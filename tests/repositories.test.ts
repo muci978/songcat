@@ -62,7 +62,7 @@ describe('songs repository', () => {
 
     // 给 A 加 PDF + 录音 + 练习
     assetsRepository.create({ songId: a.id, type: 'pdf' })
-    recordingsRepository.upsert({ songId: a.id, localPath: '/a.webm', recordedAt: nowIso() })
+    recordingsRepository.insert({ songId: a.id, localPath: '/a.webm', recordedAt: nowIso() })
     const sess = practiceSessionsRepository.create({ songId: a.id, startedAt: nowIso() })
     practiceSessionsRepository.finish(sess.id, { endedAt: nowIso(), durationSeconds: 60, stopReason: 'manual' })
 
@@ -137,15 +137,37 @@ describe('practice sessions', () => {
   })
 })
 
-describe('recordings（每首歌唯一，设计 §11）', () => {
-  it('upsert 同 song 替换，不新增行', () => {
+describe('recordings（每首歌可多条 + 主录音，设计 §11）', () => {
+  it('insert 多条：首条自动为主，后续非主', () => {
     const s = songsRepository.create({ title: 'A' })
-    recordingsRepository.upsert({ songId: s.id, localPath: '/a.webm', recordedAt: nowIso() })
-    recordingsRepository.upsert({ songId: s.id, localPath: '/b.webm', recordedAt: nowIso() })
-    const r = recordingsRepository.getBySong(s.id)
-    expect(r!.local_path).toBe('/b.webm')
-    const count = db.prepare('SELECT COUNT(*) AS c FROM recordings').get() as { c: number }
-    expect(count.c).toBe(1)
+    const r1 = recordingsRepository.insert({ songId: s.id, localPath: '/a.webm', recordedAt: nowIso() })
+    const r2 = recordingsRepository.insert({ songId: s.id, localPath: '/b.webm', recordedAt: nowIso() })
+    expect(r1.is_primary).toBe(1)
+    expect(r2.is_primary).toBe(0)
+    expect(recordingsRepository.listBySong(s.id)).toHaveLength(2)
+    // 列表主录音优先
+    expect(recordingsRepository.listBySong(s.id)[0]!.id).toBe(r1.id)
+  })
+
+  it('setPrimary 切换主录音（唯一）', () => {
+    const s = songsRepository.create({ title: 'A' })
+    const r1 = recordingsRepository.insert({ songId: s.id, localPath: '/a.webm', recordedAt: nowIso() })
+    const r2 = recordingsRepository.insert({ songId: s.id, localPath: '/b.webm', recordedAt: nowIso() })
+    recordingsRepository.setPrimary(r2.id)
+    expect(recordingsRepository.getById(r1.id)!.is_primary).toBe(0)
+    expect(recordingsRepository.getById(r2.id)!.is_primary).toBe(1)
+  })
+
+  it('deleteById 删主录音后自动提升最近一条为主', () => {
+    const s = songsRepository.create({ title: 'A' })
+    const r1 = recordingsRepository.insert({ songId: s.id, localPath: '/a.webm', recordedAt: '2026-01-01T00:00:00.000Z' })
+    const r2 = recordingsRepository.insert({ songId: s.id, localPath: '/b.webm', recordedAt: '2026-01-02T00:00:00.000Z' })
+    expect(r1.is_primary).toBe(1)
+    const removed = recordingsRepository.deleteById(r1.id)
+    expect(removed!.local_path).toBe('/a.webm')
+    // r2 被提升为主
+    expect(recordingsRepository.getById(r2.id)!.is_primary).toBe(1)
+    expect(recordingsRepository.listBySong(s.id)).toHaveLength(1)
   })
 })
 

@@ -98,18 +98,20 @@ export const SCHEMA_STATEMENTS: readonly string[] = [
   // 部分索引：快速定位未结束会话
   `CREATE INDEX IF NOT EXISTS idx_practice_active ON practice_sessions(song_id) WHERE ended_at IS NULL`,
 
-  // recordings（每首歌唯一一条）
+  // recordings（每首歌可多条，其中一条标记为主录音 is_primary=1）
   `CREATE TABLE IF NOT EXISTS recordings (
      id               TEXT PRIMARY KEY NOT NULL,
-     song_id          TEXT NOT NULL UNIQUE,
+     song_id          TEXT NOT NULL,
      local_path       TEXT NOT NULL,
      file_hash        TEXT,
      file_size        INTEGER,
      duration_seconds INTEGER,
      recorded_at      TEXT NOT NULL,
      mime_type        TEXT,
+     is_primary       INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)),
      FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE
    )`,
+  `CREATE INDEX IF NOT EXISTS idx_recordings_song ON recordings(song_id)`,
 
   // resource_sources（免费资源站）
   `CREATE TABLE IF NOT EXISTS resource_sources (

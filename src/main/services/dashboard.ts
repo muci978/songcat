@@ -81,7 +81,8 @@ export function getStats(): DashboardStats {
     todayBySong: agg.todayBySong,
     byArtist: agg.byArtist,
     recentPractice,
-    streakDays
+    streakDays,
+    heatmap: agg.heatmap
   }
 }
 

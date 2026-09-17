@@ -114,11 +114,11 @@ export function getSongDetail(id: string): SongDetail {
   if (!summary) throw notFound(`歌曲不存在：${id}`)
   const scores = assetsRepository.toModels(assetsRepository.listBySong(id))
   const sourceLinks = sourceLinksRepository.listBySong(id).map(rowToSourceLink)
-  const recording = recordingsRepository.toModel(recordingsRepository.getBySong(id))
+  const recordings = recordingsRepository.listBySong(id).map((r) => recordingsRepository.toModel(r)!)
   const recentSessions = practiceSessionsRepository
     .recentBySong(id, 10)
     .map(rowToPracticeSession)
-  return { ...summary, scores, sourceLinks, recording, recentSessions }
+  return { ...summary, scores, sourceLinks, recordings, recentSessions }
 }
 
 function maybeAddAudioSourceLink(songId: string, url: string): void {

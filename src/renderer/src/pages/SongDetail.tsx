@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type {
   Difficulty,
+  Recording,
   ScoreAsset,
   SongDetail as SongDetailModel,
   SongStatus
@@ -57,7 +58,7 @@ export default function SongDetail(): React.ReactElement {
   const [confirmDeleteSong, setConfirmDeleteSong] = useState(false)
   const [addLinkOpen, setAddLinkOpen] = useState(false)
   const [removeAssetId, setRemoveAssetId] = useState<string | null>(null)
-  const [confirmRemoveRecording, setConfirmRemoveRecording] = useState(false)
+  const [removeRecordingId, setRemoveRecordingId] = useState<string | null>(null)
 
   const songId = id ?? ''
 
@@ -97,7 +98,6 @@ export default function SongDetail(): React.ReactElement {
     return <Empty icon="⚠️">无法加载歌曲详情：{error ?? '未知错误'}</Empty>
   }
 
-  const recordingUrl = `${LOCAL_RECORDING_PROTOCOL}://${songId}`
   const totalPractice = detail.totalPracticeSeconds ?? 0
 
   return (
@@ -266,29 +266,11 @@ export default function SongDetail(): React.ReactElement {
       </Card>
 
       {/* 录音 Card */}
-      <Card title="录音" style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}>
-        {detail.recording ? (
-          <div>
-            <audio controls src={recordingUrl} style={{ width: '100%' }} />
-            <div className="row-between" style={{ marginTop: 10 }}>
-              <div className="faint" style={{ fontSize: 12 }}>
-                录制于 {formatDateTime(detail.recording.recordedAt)}
-                {detail.recording.durationSeconds
-                  ? ` · 时长 ${formatSeconds(detail.recording.durationSeconds)}`
-                  : ''}
-                {detail.recording.fileSize
-                  ? ` · ${fileSizeLabel(detail.recording.fileSize)}`
-                  : ''}
-              </div>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={() => setConfirmRemoveRecording(true)}
-              >
-                删除录音
-              </button>
-            </div>
-          </div>
-        ) : (
+      <Card
+        title={`录音（${detail.recordings.length}）`}
+        style={{ marginBottom: 20, borderRadius: 'var(--radius)' }}
+      >
+        {detail.recordings.length === 0 ? (
           <Empty icon="🎙">
             还没有录音。
             <button
@@ -299,6 +281,15 @@ export default function SongDetail(): React.ReactElement {
               去练习页录制
             </button>
           </Empty>
+        ) : (
+          detail.recordings.map((r) => (
+            <RecordingRow
+              key={r.id}
+              recording={r}
+              onChanged={() => void reload()}
+              onRemove={(rid) => setRemoveRecordingId(rid)}
+            />
+          ))
         )}
       </Card>
 
@@ -375,16 +366,16 @@ export default function SongDetail(): React.ReactElement {
 
       {/* 删除录音确认 */}
       <ConfirmDialog
-        open={confirmRemoveRecording}
+        open={removeRecordingId !== null}
         title="删除录音"
-        message="确定删除录音？该操作不可恢复。"
+        message="确定删除这条录音？该操作不可恢复。"
         confirmText="删除"
         danger
         onConfirm={() => {
-          void removeRecording(songId, reload)
-          setConfirmRemoveRecording(false)
+          if (removeRecordingId) void removeRecording(removeRecordingId, reload)
+          setRemoveRecordingId(null)
         }}
-        onClose={() => setConfirmRemoveRecording(false)}
+        onClose={() => setRemoveRecordingId(null)}
       />
     </div>
   )
@@ -404,16 +395,63 @@ async function removeAsset(
 }
 
 async function removeRecording(
-  songId: string,
+  recordingId: string,
   reload: () => Promise<void>
 ): Promise<void> {
   try {
-    await unwrap(api.recording.remove(songId))
+    await unwrap(api.recording.remove(recordingId))
     toast.success('已删除录音')
     await reload()
   } catch (e) {
     toast.error((e as Error).message)
   }
+}
+
+/** 录音行（镜像 AssetRow 主资源范式：主录音 badge + 设为主 + 删除） */
+function RecordingRow({
+  recording,
+  onChanged,
+  onRemove
+}: {
+  recording: Recording
+  onChanged: () => void
+  onRemove: (recordingId: string) => void
+}): React.ReactElement {
+  const setPrimaryAction = useAsyncAction()
+
+  const onSetPrimary = () =>
+    setPrimaryAction.run(async () => {
+      await unwrap(api.recording.setPrimary(recording.id))
+      await onChanged()
+    }, '已设为主录音')
+
+  return (
+    <div className="list-row" style={{ gridTemplateColumns: '1fr' }}>
+      <div className="row" style={{ gap: 8, alignItems: 'center', marginBottom: 8 }}>
+        <strong>录制于 {formatDateTime(recording.recordedAt)}</strong>
+        {recording.isPrimary && <span className="badge">主录音</span>}
+        <span className="faint" style={{ fontSize: 12 }}>
+          {recording.durationSeconds ? formatSeconds(recording.durationSeconds) : '—'}
+          {recording.fileSize ? ` · ${fileSizeLabel(recording.fileSize)}` : ''}
+        </span>
+      </div>
+      <audio
+        controls
+        src={`${LOCAL_RECORDING_PROTOCOL}://${recording.id}`}
+        style={{ width: '100%' }}
+      />
+      <div className="actions" style={{ marginTop: 8 }}>
+        {!recording.isPrimary && (
+          <button className="btn btn-sm" disabled={setPrimaryAction.loading} onClick={onSetPrimary}>
+            设为主录音
+          </button>
+        )}
+        <button className="btn btn-danger btn-sm" onClick={() => onRemove(recording.id)}>
+          删除
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /** 曲谱资源行 */

@@ -5,7 +5,7 @@
  * - 外部链接一律走系统浏览器；关闭应用前结束所有进行中的练习会话。
  * - 单实例锁：避免误启动多份导致内存占满（设计 §2.1）。
  */
-import { app, BrowserWindow, shell, protocol, net, dialog } from 'electron'
+import { app, BrowserWindow, shell, protocol, net, dialog, powerMonitor } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { existsSync } from 'node:fs'
@@ -110,10 +110,10 @@ function registerProtocolHandlers(): void {
     return net.fetch(pathToFileURL(filePath).toString())
   })
 
-  // songcat-recording://<songId> → 该歌最新录音
+  // songcat-recording://<recordingId> → 指定录音本地文件
   protocol.handle(LOCAL_RECORDING_PROTOCOL, async (request) => {
-    const songId = new URL(request.url).host
-    const row = recordingsRepository.getBySong(songId)
+    const id = new URL(request.url).host
+    const row = recordingsRepository.getById(id)
     if (!row) return new Response('Not found', { status: 404 })
     const filePath = resolveLibraryPath(row.local_path)
     if (!existsSync(filePath)) return new Response('Not found', { status: 404 })
@@ -172,6 +172,10 @@ if (!app.requestSingleInstanceLock()) {
       app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()
       })
+      // 系统睡眠防护（设计：睡眠自动暂停练习/停节拍器，唤醒手动继续）：
+      // 主进程仅转发事件，练习计时与节拍器状态由 renderer 拥有。
+      powerMonitor.on('suspend', () => mainWindow?.webContents.send('power-suspend'))
+      powerMonitor.on('resume', () => mainWindow?.webContents.send('power-resume'))
     } else {
       app.quit()
     }
